@@ -53,9 +53,8 @@ class Converter: StringConverter<AssociationModel>() {
 
 class MainView : View() {
 
-    val user: Profile by param()
     val controller: UserController by inject()
-    val model = AssociationProxy()
+    val model: AssociationProxy by inject()
 
     var textField: TextField by singleAssign()
 
@@ -170,7 +169,7 @@ class MainView : View() {
 
     fun filterList() {
         if (useQuery.value) {
-            filtered.setPredicate { it !== null && it.mainIdentifier.contains(query.value) }
+            filtered.setPredicate { it !== null && Regex(query.value).containsMatchIn(it.mainIdentifier) }
         } else
             filtered.setPredicate { println("In fn: " + it); it !== null }
     }
@@ -244,7 +243,6 @@ class MainView : View() {
             if(it === null) originalMainIdentifier.unbind()
             else originalMainIdentifier.bind(it.mainIdentifierProperty)
         }
-        controller.user = user
         println(controller.items)
 
         /*val selectBox =
@@ -285,11 +283,13 @@ class MainView : View() {
                                                     )
                                 }
                             )
-                        else
+                        else {
+                            controller.user = null
                             replaceWith<LoginView>(
                                 sizeToScene = true,
                                 centerOnScreen = true
                             )
+                        }
                     }
                 }
             }
@@ -481,7 +481,7 @@ class MainView : View() {
                                 vgrow = Priority.ALWAYS
                                 maxHeight = Double.MAX_VALUE
                                 padding = Insets(10.0)
-                                this += find<EntryView>(mapOf(EntryView::model to model, EntryView::originalMainIdentifier to originalMainIdentifier)).root
+                                this += find<EntryView>(mapOf(EntryView::originalMainIdentifier to originalMainIdentifier)).root
                             }
                         }
                         separator()

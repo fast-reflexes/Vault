@@ -11,6 +11,14 @@ class AuthenticationException(message: AuthenticationExceptionCause, val e: Thro
         EMPTY_PASSWORDS_NOT_ALLOWED("The password must contain at least one character")
     }
 }
+
+class CryptoException(message: CryptoExceptionCause, val e: Throwable? = null): Exception(message.explanation) {
+
+    enum class CryptoExceptionCause(val explanation: String): Cause {
+        CHARACTER_POOL_CONTAINS_DUPLICATES("The characters to use for password generation are not unique. Please insert only a string of unique characters as material for password generation.")
+    }
+}
+
 class EncryptionException(message: EncryptionExceptionCause, val e: Throwable? = null): Exception(message.explanation) {
 
     enum class EncryptionExceptionCause(val explanation: String): Cause {
@@ -38,7 +46,8 @@ class FileException(message: FileExceptionCause, val e: Throwable? = null): Exce
 class InternalException(message: InternalExceptionCause, val e: Throwable? = null): Exception(message.explanation) {
 
     enum class InternalExceptionCause(val explanation: String): Cause {
-        FILE_EXISTS("The .vault file already exists and the overwrite flag was not set to true")
+        FILE_EXISTS("The .vault file already exists and the overwrite flag was not set to true"),
+        MISSING_IDENTIFIER("The requested entry could not be found")
     }
 
 }

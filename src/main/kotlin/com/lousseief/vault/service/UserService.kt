@@ -6,8 +6,8 @@ import com.lousseief.vault.model.Settings
 
 object UserService {
 
-    fun loginUser(userName: String, password: String): Profile =
-        FileService.readFile(userName).apply{ initialize(password) }
+    fun loadUser(userName: String): Profile =
+        FileService.readFile(userName)
         /*with(FileService.readFile(userName)) {
             this
                 ?.let {

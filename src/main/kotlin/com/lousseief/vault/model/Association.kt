@@ -116,7 +116,12 @@ data class Credential(
     val password: String,
     val created: Instant = Instant.now(),
     val lastUpdated: Instant = Instant.now()
-)
+) {
+    companion object {
+        fun fromModel(model: CredentialModel) =
+                Credential(model.identities, model.password, model.created, model.lastUpdated)
+    }
+}
 
 data class Association(
     var mainIdentifier: String = "",
@@ -141,5 +146,5 @@ data class Association(
 
 data class AssociationWithCredentials(
     val association: Association = Association(),
-    var credentials: MutableList<Credential> = mutableListOf()
+    var credentials: List<Credential> = emptyList()
 )

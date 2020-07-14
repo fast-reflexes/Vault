@@ -1,9 +1,5 @@
 package com.lousseief.vault.controller
 
-import com.lousseief.vault.model.Association
-import com.lousseief.vault.model.AssociationModel
-import com.lousseief.vault.model.Profile
-import com.lousseief.vault.model.Settings
 import javafx.beans.Observable
 import javafx.beans.property.SimpleStringProperty
 import javafx.collections.FXCollections
@@ -13,6 +9,7 @@ import javafx.util.Callback
 import tornadofx.Controller
 import tornadofx.asObservable
 import com.lousseief.vault.exception.AuthenticationException;
+import com.lousseief.vault.model.*
 import javafx.beans.property.SimpleBooleanProperty
 
 class UserController: Controller() {
@@ -23,21 +20,27 @@ class UserController: Controller() {
     set(value) {
         println("Running setter")
         field = value
-        /*categories = FXCollections.observableArrayList(
-            object: Callback<String, Array<Observable>> {
+        if(value !== null) {
+            /*categories = FXCollections.observableArrayList(
+                object: Callback<String, Array<Observable>> {
 
-                override
-                fun call(s: String): Array<Observable> {
-                    return Array<Observable>(1){ s }
+                    override
+                    fun call(s: String): Array<Observable> {
+                        return Array<Observable>(1){ s }
+                    }
                 }
-            }
-        )*/
-        //categories = mutableListOf<String>().asObservable()
-        items.addAll((user?.associations ?: emptyMap<String, Association>()).map { AssociationModel(it.value) })
-        categories.addAll(
-            mutableListOf<String?>()
-            .apply { addAll(user?.settings?.categories ?: emptyList<String>()) }
-        )
+            )*/
+            //categories = mutableListOf<String>().asObservable()
+            items.addAll((user?.associations ?: emptyMap<String, Association>()).map { AssociationModel(it.value) })
+            categories.addAll(
+                mutableListOf<String?>()
+                    .apply { addAll(user?.settings?.categories ?: emptyList<String>()) }
+            )
+        }
+        else {
+            items.clear()
+            categories.clear()
+        }
     }
 
     //var items: ObservableList<AssociationModel> = mutableListOf<AssociationModel>().asObservable()
@@ -60,10 +63,6 @@ class UserController: Controller() {
 
     var categories: ObservableList<String> = mutableListOf("").asObservable()
     private set
-
-    fun unsetUser() {
-        user = null;
-    }
 
     fun addEntry(name: String, password: String?) {
         if(password === null || password.length == 0)
@@ -156,5 +155,11 @@ class UserController: Controller() {
         println("updated")
         altered.set(true)
     }
+
+    fun getCredentials(identifier: String, password: String) =
+        user!!.getCredentials(identifier, password)
+
+    fun updateCredentials(identifier: String, credentials: List<Credential>, password: String) =
+        user!!.updateCredentials(identifier, credentials, password)
 
 }

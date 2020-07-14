@@ -1,10 +1,12 @@
 package com.lousseief.vault.view
 
+import com.lousseief.vault.controller.CredentialsController
 import com.lousseief.vault.controller.UserController
 import com.lousseief.vault.dialog.PasswordConfirmDialog
 import com.lousseief.vault.dialog.SingleInputDialog
 import com.lousseief.vault.model.AssociationProxy
 import com.lousseief.vault.model.AssociationModel
+import com.lousseief.vault.model.CredentialModel
 import de.jensd.fx.glyphs.fontawesome.FontAwesomeIcon
 import de.jensd.fx.glyphs.fontawesome.FontAwesomeIconView
 import javafx.application.Platform
@@ -29,17 +31,17 @@ import java.awt.GridBagConstraints.VERTICAL
 
 class EntryView: View() {
 
-    val model: AssociationProxy by param()
-    val controller = find<UserController>()
+    val model: AssociationProxy by inject()
+    val controller: UserController by inject()
+    val credentialsController: CredentialsController by inject()
     val originalMainIdentifier: SimpleStringProperty by param()
     val secondaryIdentifier = SimpleStringProperty(null)
     val sizeProperty: IntegerBinding = Bindings.size(controller.categories)
     val header = object: SimpleStringProperty(null) {
 
-        override
-        fun getValue(): String {
-            return "Entry: " + (super.getValue() ?: "(unnamed entry)")
-        }
+        override fun getValue(): String =
+            "Entry: " + (super.getValue() ?: "(unnamed entry)")
+
     }.apply { bind(originalMainIdentifier) }
     override
     fun onUndock() {
@@ -276,7 +278,7 @@ class EntryView: View() {
                     }
                 }
             }
-            separator() {
+            separator {
                 padding = Insets(0.0, 10.0, 0.0, 10.0)
             }
             hbox {
@@ -285,22 +287,11 @@ class EntryView: View() {
                 alignment = Pos.CENTER
                 button("Credentials") {
                     action {
-                        /*PasswordConfirmDialog({ password: String, _: ActionEvent ->
-                            val oldIdentifier = originalMainIdentifier.value
-                            val newIdentifier = model.mainIdentifier.value
-                            controller.updateAssociation(
-                                oldIdentifier,
-                                model.mainIdentifier.value,
-                                model.getCurrentStateAsAssociation(),
-                                password)
-                            println("Before commit: " + model.mainIdentifier)
-                            model.commit()
-                            assert(model.mainIdentifier.value !== null)
-                            assert((oldIdentifier == newIdentifier) == (oldIdentifier == model.mainIdentifier.value))
-                            println("After commit: " + model.mainIdentifier)
-                        }).showAndWait()*/
-                        find<CredentialsView>().openModal()
-                        //openModal<LoginView>()
+                        PasswordConfirmDialog { password: String, _: ActionEvent ->
+                            val credentials = controller.getCredentials(originalMainIdentifier.value, password)
+                            credentialsController.credentials.setAll(credentials.map{ CredentialModel(it) })
+                            find<CredentialsView>(mapOf(CredentialsView::mainIdentifier to originalMainIdentifier)).openModal()
+                        }.showAndWait()
                     }
                 }
                 region {
@@ -316,11 +307,11 @@ class EntryView: View() {
                             dialogPane.buttonTypes.remove(ButtonType.OK)
                             dialogPane.buttonTypes.add(deleteButtonType)
                             dialogPane.lookupButton(deleteButtonType).addEventFilter(ActionEvent.ACTION) { event ->
-                                val password = PasswordConfirmDialog({
+                                val password = PasswordConfirmDialog{
                                         password: String, _: ActionEvent ->
                                     controller.removeEntry(model.mainIdentifier.value, password)
                                     //model.item = null
-                                }).showAndWait()
+                                }.showAndWait()
                                 if(password.isEmpty)
                                     event.consume()
                             }
@@ -353,7 +344,7 @@ class EntryView: View() {
                     enableWhen(model.dirty)
                     action {
                         if(model.isValid) {
-                            PasswordConfirmDialog({ password: String, _: ActionEvent ->
+                            PasswordConfirmDialog{ password: String, _: ActionEvent ->
                                 val oldIdentifier = originalMainIdentifier.value
                                 val newIdentifier = model.mainIdentifier.value
                                 controller.updateAssociation(
@@ -366,7 +357,7 @@ class EntryView: View() {
                                 assert(model.mainIdentifier.value !== null)
                                 assert((oldIdentifier == newIdentifier) == (oldIdentifier == model.mainIdentifier.value))
                                 println("After commit: " + model.mainIdentifier)
-                            }).showAndWait()
+                            }.showAndWait()
                         }
                         else
                             alert(
@@ -379,7 +370,7 @@ class EntryView: View() {
                 }
             }
         }
-    };
+    }
 
     init {
         //println("Root children in En: " + root.children[2].toString())

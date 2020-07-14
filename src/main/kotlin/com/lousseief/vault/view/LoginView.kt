@@ -22,6 +22,8 @@ class LoginView: View() {
     val name: SimpleStringProperty = SimpleStringProperty()
     val password: SimpleStringProperty = SimpleStringProperty()
 
+    val controller: UserController by inject()
+
     override
     fun onDock() {
         super.onDock()
@@ -59,15 +61,14 @@ class LoginView: View() {
         //    alert(Alert.AlertType.ERROR, "Password mismatch", "The password and password repetition didn't match")
         else {
             try {
-                val loggedInUser = UserService.loginUser(name.value, password.value)
+                val loggedInUser = UserService.loadUser(name.value).apply { initialize(password.value) }
                 println("LOGGED IN")
                 println(loggedInUser.passwordSalt.length)
                 println(loggedInUser.verificationSalt.length)
                 println(loggedInUser.verificationHash.length)
-                val userScope = Scope()
-                val loggedInView = find<MainView>(userScope, mapOf(MainView::user to loggedInUser))
+                controller.user = loggedInUser
                 replaceWith(
-                    loggedInView,
+                    find<MainView>(),
                     centerOnScreen = true,
                     sizeToScene = true
                     //transition = ViewTransition.Flip(500.millis)
