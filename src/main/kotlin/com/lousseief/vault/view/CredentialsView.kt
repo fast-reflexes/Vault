@@ -3,13 +3,13 @@ package com.lousseief.vault.view
 import com.lousseief.vault.controller.CredentialsController
 import com.lousseief.vault.controller.UserController
 import com.lousseief.vault.dialog.AddCredentialDialog
-import com.lousseief.vault.dialog.PasswordConfirmDialog
-import com.lousseief.vault.dialog.SingleInputDialog
+import com.lousseief.vault.dialog.AddUserNameDialog
 import com.lousseief.vault.model.Credential
 import com.lousseief.vault.model.CredentialModel
 import com.lousseief.vault.model.CredentialProxy
 import de.jensd.fx.glyphs.fontawesome.FontAwesomeIcon
 import de.jensd.fx.glyphs.fontawesome.FontAwesomeIconView
+import javafx.application.Platform
 import javafx.beans.binding.Bindings
 import javafx.beans.property.SimpleIntegerProperty
 import javafx.beans.property.SimpleStringProperty
@@ -38,7 +38,7 @@ class CredentialsView: View() {
 
     private fun timeToStringCallable(time: Instant?): String =
         time
-            ?.atZone(ZoneId.of("Europe/Stockholm"))
+            ?.atZone(ZoneId.systemDefault())
             ?.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT))
         ?: "-"
 
@@ -70,50 +70,96 @@ class CredentialsView: View() {
 
     }
 
-    private fun copySelectionToClipboard(string: String) {
-        val clipboardContent = ClipboardContent()
-        clipboardContent.putString(string)
-        Clipboard.getSystemClipboard().setContent(clipboardContent)
+    private val saveHandler = {
+        password: String, _: ActionEvent? ->
+            userController.setUserNames(controller.userNames)
+            userController.updateCredentials(
+                mainIdentifier.value,
+                controller.credentials.map { Credential.fromModel(it) },
+                password
+            )
+            controller.saved()
     }
 
-    private fun setCurrent(value: Int) {
-        if(value != currentCredential.value)
+    private fun copySelectionToClipboard(string: String) =
+        ClipboardContent()
+            .apply {
+                putString(string)
+                Clipboard.getSystemClipboard().setContent(this)
+            }
+
+    private fun setCurrent(value: Int) =
+        if (value != currentCredential.value)
             currentCredential.set(value)
         else
             setModel(value)
-    }
 
     private fun setModel(newValue: Number) {
         if(newValue == 0)
             model.item = null
-        else {
+        else
             model.item = controller.credentials[newValue.toInt() - 1]
-            copyButton.requestFocus()
+        Platform.runLater { copyButton.requestFocus() }
+    }
+
+    val keyListener = {
+        event: KeyEvent ->
+            if(event.code === KeyCode.LEFT && model.isNotEmpty && currentCredential.value > 1)
+                currentCredential.set(currentCredential.value - 1)
+            else if(event.code === KeyCode.RIGHT && model.isNotEmpty && controller.credentials.size > currentCredential.value)
+                currentCredential.set(currentCredential.value + 1)
+            event.consume()
+    }
+
+    override
+    fun onUndock() {
+        currentWindow!!.scene.removeEventFilter(KeyEvent.KEY_PRESSED, keyListener)
+    }
+
+    override
+    fun onDock() {
+        currentWindow!!.scene.addEventFilter(KeyEvent.KEY_PRESSED, keyListener)
+        currentWindow!!.setOnCloseRequest {
+            if(controller.altered.value == true) {
+                val closeAnyway = ButtonType("Close anyway", ButtonBar.ButtonData.OK_DONE)
+                val cancel = ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE)
+                val dialog = Alert(
+                    Alert.AlertType.CONFIRMATION,
+                    "You have unsaved changes in these credentials, do you really want to close this window without saving first? If no, press \"Cancel\" and then press \"Save\".",
+                    cancel, closeAnyway
+                )
+                (dialog.dialogPane.lookupButton(closeAnyway) as Button).isDefaultButton = false
+                (dialog.dialogPane.lookupButton(cancel) as Button).apply {
+                    isDefaultButton = true
+                    addEventFilter(ActionEvent.ACTION) { _ -> it.consume() }
+                }
+                dialog.headerText = "Do you really want to close this window?"
+                dialog.showAndWait()
+            }
         }
+
+        super.onDock()
     }
 
     init {
-        if(controller.credentials.size > 0)
-            model.item = controller.credentials[0]
-        else
-            model.item = null
-        headerText.bind(mainIdentifier)
         currentCredential.addListener{ _, _, newValue -> setModel(newValue) }
         controller.credentials.addListener(
             object: ListChangeListener<CredentialModel> {
                 override fun onChanged(change: ListChangeListener.Change<out CredentialModel>) {
                     println("clist changed!)")
                     change.next()
+                    println(change.toString())
                     if(change.wasReplaced()) {
                         // both removed and added = loaded a new non-empty list of credentials, indicates loaded view
                         println("clist replaced!)" + controller.credentials.size)
-                      setCurrent(if (controller.credentials.size > 0) 1 else 0)
+                        setCurrent(if (controller.credentials.size > 0) 1 else 0)
                     }
                     else if(change.wasAdded()) {
-                        if(change.addedSize > 1)
-                            setCurrent(if (controller.credentials.size > 0) 1 else 0)
-                        else // indicates loaded view
-                           setCurrent(controller.credentials.size)
+                        println("was added!")
+                        if(change.addedSize > 1) // indicates loading of view
+                            setCurrent(1)
+                        else // indicates single added item to a previously collection
+                            setCurrent(controller.credentials.size)
                     }
                     else if(change.wasRemoved()) {
                         // whenever an entry is removed OR we removed a list of credentials and the new one was empty
@@ -126,6 +172,8 @@ class CredentialsView: View() {
                 }
             }
         )
+        setCurrent(if(controller.credentials.size > 0) 1 else 0)
+        headerText.bind(mainIdentifier)
     }
 
     override val root = vbox {
@@ -231,9 +279,9 @@ class CredentialsView: View() {
                                         isFocusTraversable = true
                                         val keyCodeCopy = KeyCodeCombination(KeyCode.C, KeyCombination.CONTROL_ANY)
                                         setOnKeyPressed {
-                                            event ->
-                                                if(keyCodeCopy.match(event))
-                                                    copySelectionToClipboard(model.password.value)
+                                                event ->
+                                            if(keyCodeCopy.match(event))
+                                                copySelectionToClipboard(model.password.value)
                                         }
                                     }
 
@@ -258,13 +306,18 @@ class CredentialsView: View() {
                                             disableWhen(model.empty)
                                             maxWidth = Double.MAX_VALUE
                                             action {
-                                                val newPassword = AddCredentialDialog({ input: String?, _: ActionEvent ->
-                                                    if (input === null || input.isEmpty())
-                                                        throw Exception("Empty password is neither advisable nor allowed.")
-                                                }, "Generate or enter a new password for your credential").showAndWait()
+                                                val newPassword = AddCredentialDialog(
+                                                    userController.user!!.settings.passwordLength,
+                                                    {
+                                                        input: String?, _: ActionEvent ->
+                                                            if (input === null || input.isEmpty())
+                                                                throw Exception("Empty password is neither advisable nor allowed.")
+                                                    },
+                                                    "Generate or enter a new password for your credential"
+                                                ).showAndWait()
                                                 if (newPassword.isPresent) {
                                                     model.password.value = newPassword.get()
-                                                    model.commit()
+                                                    model.lastUpdated.value = Instant.now()
                                                 }
                                             }
                                         }
@@ -308,16 +361,24 @@ class CredentialsView: View() {
                                             maxWidth = Double.MAX_VALUE
                                             action {
                                                 val newLoginName =
-                                                    SingleInputDialog({ input: String, _: ActionEvent ->
-                                                        if (input.isEmpty())
-                                                            throw Exception("Empty login name not allowed, please try again.")
-                                                        else if (model.identities.value.any {
-                                                                it.toLowerCase() == input.toLowerCase()
-                                                            })
-                                                            throw Exception("Login name already exists, please try again.")
-                                                    }, "Enter a login name to add to your credential").showAndWait()
-                                                if (newLoginName.isPresent)
+                                                    AddUserNameDialog(
+                                                        { input: String, _: ActionEvent ->
+                                                            if (input.isEmpty())
+                                                                throw Exception("Empty login name not allowed, please try again.")
+                                                            else if (model.identities.value.any {
+                                                                    it.toLowerCase() == input.toLowerCase()
+                                                                })
+                                                                throw Exception("Login name already exists, please try again.")
+                                                        },
+                                                        "Add a login name to add to your credential",
+                                                        (listOf("") + controller.userNames.keys.toList()).toObservable(),
+                                                        model
+                                                    ).showAndWait()
+                                                if (newLoginName.isPresent) {
+                                                    controller.addUserName(newLoginName.get())
                                                     model.identities.value.add(newLoginName.get())
+                                                    model.lastUpdated.value = Instant.now()
+                                                }
                                             }
                                         }
                                         button("Remove user name") {
@@ -335,16 +396,19 @@ class CredentialsView: View() {
                                                     dialogPane
                                                         .lookupButton(deleteButtonType)
                                                         .addEventFilter(ActionEvent.ACTION) {
+                                                            controller.removeUserName(identity.value)
                                                             model.identities.value.remove(identity.value)
+                                                            model.lastUpdated.value = Instant.now()
                                                         }
                                                 }
-                                                val res = a.showAndWait()
+                                                a.showAndWait()
+                                                /*val res = a.showAndWait()
                                                 if(res.isPresent && res.get() === deleteButtonType)
                                                     alert(
                                                         type = Alert.AlertType.INFORMATION,
                                                         header = "Login name successfully removed",
                                                         content = "The login name was successfully deleted from your credential"
-                                                    )
+                                                    )*/
                                             }
                                         }
                                     }
@@ -367,7 +431,10 @@ class CredentialsView: View() {
                                         dialogPane
                                             .lookupButton(deleteButtonType)
                                             .addEventFilter(ActionEvent.ACTION) {
-                                                    controller.removeCredential(model.password.value)
+                                                model.identities.value.forEach {
+                                                    controller.removeUserName(it)
+                                                }
+                                                controller.removeCredential(model.password.value)
                                             }
                                     }
                                     val res = a.showAndWait()
@@ -389,10 +456,15 @@ class CredentialsView: View() {
             padding = insets(10.0)
             button("Add new credential") {
                 action {
-                    val newPassword = AddCredentialDialog({ input: String?, _: ActionEvent ->
-                        if (input === null || input.isEmpty())
-                            throw Exception("Empty password is neither advisable nor allowed.")
-                    }, "Generate or enter a password for your new credential").showAndWait()
+                    val newPassword = AddCredentialDialog(
+                        userController.user!!.settings.passwordLength,
+                        {
+                            input: String?, _: ActionEvent ->
+                                if (input === null || input.isEmpty())
+                                    throw Exception("Empty password is neither advisable nor allowed.")
+                        },
+                        "Generate or enter a password for your new credential"
+                    ).showAndWait()
                     if (newPassword.isPresent) {
                         controller.addCredential(
                             newPassword.get()
@@ -407,32 +479,28 @@ class CredentialsView: View() {
             button("Close") {
                 action {
                     val closeCredentialsWindow = { close() }
-                    if(controller.altered.value == true)
-                        alert(
-                            type = Alert.AlertType.CONFIRMATION,
-                            header = "Do you really want to close this window?",
-                            content = "You have unsaved changes in these credentials, do you really want to close them without saving first? If no, press \"Cancel\" and then press \"Save\".",
-                            actionFn = { type ->
-                                if(type === ButtonType.OK)
-                                    closeCredentialsWindow()
-                            }
+                    if(controller.altered.value == true) {
+                        val closeAnyway = ButtonType("Close anyway", ButtonBar.ButtonData.OK_DONE)
+                        val cancel = ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE)
+                        val dialog = Alert(
+                            Alert.AlertType.CONFIRMATION,
+                            "You have unsaved changes in these credentials, do you really want to close this window without saving first? If no, press \"Cancel\" and then press \"Save\".",
+                            cancel, closeAnyway
                         )
+                        (dialog.dialogPane.lookupButton(closeAnyway) as Button).isDefaultButton = false
+                        (dialog.dialogPane.lookupButton(cancel) as Button).isDefaultButton = true
+                        dialog.headerText = "Do you really want to close this window?"
+                        val buttonType = dialog.showAndWait()
+                        if (buttonType.isPresent && buttonType.get() === closeAnyway)
+                            closeCredentialsWindow()
+                    }
                     else
                         close()
                 }
             }
             button("Save") {
                 disableWhen(controller.altered.not())
-                action {
-                    PasswordConfirmDialog { password: String, _: ActionEvent ->
-                        userController.updateCredentials(
-                            mainIdentifier.value,
-                            controller.credentials.map { Credential.fromModel(it) },
-                            password
-                        )
-                        controller.altered.set(false)
-                    }.showAndWait()
-                }
+                action { userController.passwordRequiredAction(saveHandler) }
             }
         }
     }

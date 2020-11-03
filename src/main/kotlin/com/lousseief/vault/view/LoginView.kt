@@ -1,20 +1,20 @@
 package com.lousseief.vault.view
 
-import com.google.gson.Gson
 import com.lousseief.vault.controller.UserController
 import com.lousseief.vault.exception.AuthenticationException
-import com.lousseief.vault.model.Association
-import com.lousseief.vault.model.AssociationProxy
-import com.lousseief.vault.model.Profile
 import com.lousseief.vault.service.FileService
 import com.lousseief.vault.service.UserService
-import com.lousseief.vault.service.VerificationService
 import de.jensd.fx.glyphs.fontawesome.FontAwesomeIcon
 import de.jensd.fx.glyphs.fontawesome.FontAwesomeIconView
+import javafx.application.Platform
 import javafx.beans.property.SimpleStringProperty
+import javafx.geometry.Insets
+import javafx.geometry.Pos
 import javafx.scene.control.Alert
+import javafx.scene.control.TextField
 import javafx.scene.input.KeyCode
 import javafx.scene.input.KeyEvent
+import javafx.scene.layout.Priority
 import tornadofx.*
 
 class LoginView: View() {
@@ -22,51 +22,61 @@ class LoginView: View() {
     val name: SimpleStringProperty = SimpleStringProperty()
     val password: SimpleStringProperty = SimpleStringProperty()
 
-    val controller: UserController by inject()
+    var userNameField: TextField by singleAssign()
+    var passwordField: TextField by singleAssign()
+
+    private val controller: UserController by inject()
 
     override
     fun onDock() {
         super.onDock()
+        name.set(null)
+        password.set(null)
         //primaryStage.width = 1000.0
         //primaryStage.height = 768.0
         //primaryStage.sizeToScene()
         //currentStage!!.sizeToScene()
+        primaryStage.minWidth = 0.0
+        primaryStage.minHeight = 0.0
         currentWindow!!.sizeToScene()
+        //Platform.runLater { primaryStage.minWidth = currentStage!!.width }
+        println("before sceneW " + currentStage!!.width)
+        println("before sceneH " +  currentStage!!.height)
+        println("before stageW " + primaryStage.width)
+        println("before stageH " + primaryStage.height)
 
-        System.out.println("before sceneW " + currentStage!!.getWidth());
-        System.out.println("before sceneH " +  currentStage!!.getHeight());
-        System.out.println("before stageW " + primaryStage.getWidth());
-        System.out.println("before stageH " + primaryStage.getHeight());
+        primaryStage.show()
 
-        primaryStage.show();
+        println("after sceneW " + currentStage!!.width)
+        println("after sceneH " +  currentStage!!.height)
+        println("after stageW " + primaryStage.width)
+        println("after stageH " + primaryStage.height)
 
-        System.out.println("after sceneW " + currentStage!!.getWidth());
-        System.out.println("after sceneH " +  currentStage!!.getHeight());
-        System.out.println("after stageW " + primaryStage.getWidth());
-        System.out.println("after stageH " + primaryStage.getHeight());
-
-        primaryStage.setMinWidth(primaryStage.getWidth());
-        primaryStage.setMinHeight(primaryStage.getHeight());
-        //
+        primaryStage.minWidth = primaryStage.width
+        primaryStage.minHeight = primaryStage.height
     }
 
     private fun attemptLogin() {
-        if (!FileService.userExists(name.value))
+        if (!FileService.userExists(name.value)) {
             alert(
                 Alert.AlertType.ERROR,
                 "Username or password invalid",
                 "The username or password was invalid, please try again"
             )
+            passwordField.requestFocus()
+            passwordField.selectAll()
+        }
         //else if(password.value !== passwordRepetition.value)
         //    alert(Alert.AlertType.ERROR, "Password mismatch", "The password and password repetition didn't match")
         else {
             try {
-                val loggedInUser = UserService.loadUser(name.value).apply { initialize(password.value) }
+                val loggedInUser = UserService.loadUser(name.value)
+                val associations = loggedInUser.initialize(password.value)
                 println("LOGGED IN")
-                println(loggedInUser.passwordSalt.length)
+                println(loggedInUser.keyMaterialSalt.length)
                 println(loggedInUser.verificationSalt.length)
                 println(loggedInUser.verificationHash.length)
-                controller.user = loggedInUser
+                controller.setUser(loggedInUser, associations, password.value)
                 replaceWith(
                     find<MainView>(),
                     centerOnScreen = true,
@@ -82,44 +92,69 @@ class LoginView: View() {
             }
             catch(e: AuthenticationException) {
                 alert(Alert.AlertType.ERROR, "Login failed", e.message)
+                passwordField.requestFocus()
+                passwordField.selectAll()
             }
-
         }
     }
 
     override
     val root =
-        form {
-            fieldset("Login", FontAwesomeIconView(FontAwesomeIcon.HOME)) {
-                field("Username") { textfield().bind(name) }
-                field("Password") { passwordfield().bind(password) }
-                borderpane {
-                    center =
-                        button("Log in") {
-                            useMaxWidth= true
-                            style{
-                                minWidth = 100.percent
-                            }
+        stackpane {
+            alignment = Pos.TOP_RIGHT
+            padding = Insets(5.0)
+            form {
+                padding = Insets(5.0)
+                fieldset("Login", FontAwesomeIconView(FontAwesomeIcon.HOME)) {
+                    paddingBottom = 0.0
+                    field("Username") {
+                        textfield {
+                            bind(name)
+                            userNameField = this
                             addEventFilter(KeyEvent.KEY_PRESSED) {
-                                if(it.code === KeyCode.ENTER)
-                                    attemptLogin()
+                                event ->
+                                    if(event.code.equals(KeyCode.ENTER) && name.isNotEmpty.value)
+                                        passwordField.requestFocus()
                             }
-                            action {
+                        }
+                    }
+                    field("Password") {
+                        passwordfield {
+                            bind(password)
+                            passwordField = this
+                            addEventFilter(KeyEvent.KEY_PRESSED) {
+                                event ->
+                                    if(event.code.equals(KeyCode.ENTER) && password.isNotEmpty.value)
+                                        attemptLogin()
+                            }
+                        }
+                    }
+                    region {
+                        prefHeight = 5.0
+                    }
+                    button("Log in") {
+                        hgrow = Priority.ALWAYS
+                        maxWidth = Double.MAX_VALUE
+                        addEventFilter(KeyEvent.KEY_PRESSED) {
+                            if (it.code === KeyCode.ENTER)
                                 attemptLogin()
-                            }
-                            // Save button is disabled until every field has a value
-                            disableProperty().bind(name.isNull.or(password.isNull));
-
-
                         }
-                    right =
-                        hyperlink("Register") {
-                            action { replaceWith<RegisterView>(
-                                centerOnScreen = true,
-                                sizeToScene = true
-                                //transition = ViewTransition.Metro(500.millis, ViewTransition.Direction.LEFT)
-                            ) }
-                        }
+                        action { attemptLogin() }
+                        // Save button is disabled until every field has a value
+                        disableProperty().bind(name.isNull.or(password.isNull))
+                    }
+                }
+            }
+            hyperlink("Register") {
+                hgrow = Priority.NEVER
+                vgrow = Priority.NEVER
+                text = "Register"
+                action {
+                    replaceWith<RegisterView>(
+                        centerOnScreen = true,
+                        sizeToScene = true
+                        //transition = ViewTransition.Metro(500.millis, ViewTransition.Direction.LEFT)
+                    )
                 }
             }
         }

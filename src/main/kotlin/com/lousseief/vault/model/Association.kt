@@ -110,19 +110,6 @@ class AssociationModel() {
         mainIdentifier
 }
 
-// actual underlying data classes with the full information
-data class Credential(
-    val identities: List<String>,
-    val password: String,
-    val created: Instant = Instant.now(),
-    val lastUpdated: Instant = Instant.now()
-) {
-    companion object {
-        fun fromModel(model: CredentialModel) =
-                Credential(model.identities, model.password, model.created, model.lastUpdated)
-    }
-}
-
 data class Association(
     var mainIdentifier: String = "",
     var secondaryIdentifiers: MutableList<String> = mutableListOf(),
@@ -131,18 +118,7 @@ data class Association(
     var isDeactivated: Boolean = false,
     var category: String = "",
     var comment: String = ""
-) {
-    constructor(assoc: AssociationModel):
-        this(
-            assoc.mainIdentifier,
-            assoc.secondaryIdentifiers,
-            assoc.isNeeded,
-            assoc.shouldBeDeactivated,
-            assoc.isDeactivated,
-            assoc.category,
-            assoc.comment
-        )
-}
+)
 
 data class AssociationWithCredentials(
     val association: Association = Association(),

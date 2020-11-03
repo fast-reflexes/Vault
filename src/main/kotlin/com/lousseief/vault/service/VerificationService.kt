@@ -1,18 +1,16 @@
 package com.lousseief.vault.service
 
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import com.lousseief.vault.crypto.Conversion
+import com.lousseief.vault.crypto.CryptoUtils
+import com.lousseief.vault.crypto.Hmac
+import com.lousseief.vault.crypto.KeyDerivation
 import com.lousseief.vault.exception.AuthenticationException
-import com.lousseief.vault.model.*
-import com.lousseief.vault.view.LoginView
-import javafx.scene.control.Alert
-import tornadofx.ViewTransition
-import tornadofx.alert
-import tornadofx.millis
+import com.lousseief.vault.exception.InternalException
+import com.lousseief.vault.exception.VerificationException
 
 object VerificationService {
 
-    fun constantCompareStrings(a: String, b: String): Boolean {
+    /*fun constantCompareStrings(a: String, b: String): Boolean {
         val aLen = a.length
         val bLen = b.length
         var match = aLen == bLen
@@ -24,13 +22,24 @@ object VerificationService {
             match = match && aToUse[i] == bToUse[i]
         }
         return match
+    }*/
+
+    fun authorize(password: String, keyMaterialSalt: String, verification: String, verificationSalt: String): ByteArray {
+        val (_, keyMaterialBytes) = KeyDerivation.deriveKey(password, Conversion.Base64ToBytes(keyMaterialSalt))
+        val (_, hashBytes) = KeyDerivation.deriveKey(Conversion.bytesToUTF8(keyMaterialBytes), Conversion.Base64ToBytes(verificationSalt))
+        if(keyMaterialBytes.size != 64)
+            throw InternalException(InternalException.InternalExceptionCause.UNEXPECTED_CRYPTO_SIZE)
+        val authorized = CryptoUtils.constantCompareByteArrays(Conversion.Base64ToBytes(verification), hashBytes)
+        return if(authorized) keyMaterialBytes else throw AuthenticationException(AuthenticationException.AuthenticationExceptionCause.UNAUTHORIZED)
     }
 
-    fun authorize(password: String, passwordSalt: String, verification: String, verificationSalt: String): ByteArray {
-        val (_, encryptionKey) = PBKDF2Service.deriveKey(password, ConversionService.Base64ToBytes(passwordSalt))
-        val (_, hash) = PBKDF2Service.deriveKey(ConversionService.bytesToAscii(encryptionKey), ConversionService.Base64ToBytes(verificationSalt))
-        val authorized = constantCompareStrings(verification, ConversionService.bytesToBase64(hash))
-        return if(authorized) encryptionKey else throw AuthenticationException(AuthenticationException.AuthenticationExceptionCause.UNAUTHORIZED)
+    fun verify(hMacKey: ByteArray, data: String, storedCheckSum: String) {
+        val verified = Hmac.authenticateMac(
+            Conversion.UTF8ToBytes(data),
+            hMacKey,
+            Conversion.Base64ToBytes(storedCheckSum)
+        )
+        if (!verified) throw VerificationException(VerificationException.VerificationExceptionCause.INTEGRITY_CHECK_FAILED)
     }
 
 }

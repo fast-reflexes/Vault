@@ -10,33 +10,40 @@ import javafx.geometry.Insets
 import javafx.geometry.Orientation
 import javafx.geometry.Pos
 import javafx.scene.control.*
+import javafx.scene.input.*
 import javafx.scene.layout.Priority
+import javafx.scene.paint.Color
 import javafx.scene.text.TextAlignment
 import javafx.util.StringConverter
 import tornadofx.*
 import java.lang.Integer.parseInt
 
 
-class AddCredentialDialog(defaultPasswordLength: Int, evaluator: (String, ActionEvent) -> Unit, header: String): Dialog<String?>() {
+class StringGeneratorDialog(defaultPasswordLength: Int): Dialog<String?>() {
 
     companion object {
-        const val PASSWORD_LENGTH_MAX = 40
-        const val PASSWORD_LENGTH_MIN = 5
+        const val STRING_LENGTH_MAX = 100
+        const val STRING_LENGTH_MIN = 1
     }
-
-    val errorProperty = SimpleStringProperty("")
 
     val lowerCaseProperty = SimpleBooleanProperty(true)
     val upperCaseProperty = SimpleBooleanProperty(true)
     val numbersProperty = SimpleBooleanProperty(true)
     val specialCharsProperty = SimpleBooleanProperty(true)
-    val passwordLengthProperty = SimpleIntegerProperty(defaultPasswordLength)
-    val passwordLength by passwordLengthProperty
-    val passwordProperty = SimpleStringProperty("")
-    val password by passwordProperty
+    val stringLengthProperty = SimpleIntegerProperty(defaultPasswordLength)
+    val stringLength by stringLengthProperty
+    val generatedStringProperty = SimpleStringProperty("")
+    val generatedString by generatedStringProperty
 
-    var passwordField: TextField by singleAssign()
+    var stringField: TextField by singleAssign()
     var intSpinner: Spinner<Number> by singleAssign()
+
+    private fun copySelectionToClipboard(string: String) =
+        ClipboardContent()
+            .apply {
+                putString(string)
+                Clipboard.getSystemClipboard().setContent(this)
+            }
 
     fun getCharPoolContent(): String =
         listOf(
@@ -49,29 +56,21 @@ class AddCredentialDialog(defaultPasswordLength: Int, evaluator: (String, Action
             .joinToString("")
 
     init {
-        headerText = header
+        headerText = "Generate a random string for general use"
 
-        val okButton = ButtonType.OK
-        val cancelButton = ButtonType.CANCEL
-        dialogPane.buttonTypes.add(cancelButton)
-        dialogPane.buttonTypes.add(okButton)
-        dialogPane.lookupButton(okButton).disableWhen(passwordProperty.isEmpty)
+        val copyButton = ButtonType("Copy string to clipboard", ButtonBar.ButtonData.CANCEL_CLOSE)
+        val generateButton = ButtonType("Generate string", ButtonBar.ButtonData.CANCEL_CLOSE)
+        val closeButton = ButtonType.CLOSE
+
+        dialogPane.buttonTypes.addAll(copyButton, generateButton, closeButton)
+        ButtonBar.setButtonUniformSize(dialogPane.lookupButton(copyButton), false)
+        ButtonBar.setButtonUniformSize(dialogPane.lookupButton(generateButton), false)
+        ButtonBar.setButtonUniformSize(dialogPane.lookupButton(closeButton), false)
 
         val icon = Label()
         icon.styleClass.addAll("alert", "confirmation", "dialog-pane")
         setGraphic(icon)
-
-        val errorLabel = Label()
-        errorLabel.removeWhen(errorProperty.isEmpty)
-        errorLabel.hgrow = Priority.ALWAYS
-        errorLabel.vgrow = Priority.NEVER
-        errorLabel.maxHeight = Double.MAX_VALUE
-        errorLabel.textProperty().bind(errorProperty)
-        errorLabel.textAlignment = TextAlignment.LEFT
-        errorLabel.style = "-fx-text-fill: red";
-        errorLabel.alignment = Pos.CENTER_LEFT
-        errorLabel.setWrapText(true)
-        Platform.runLater{errorLabel.setMaxWidth(passwordField.width)}
+        setOnCloseRequest { close() }
 
         dialogPane.hgrow = Priority.NEVER
         dialogPane.vgrow = Priority.ALWAYS
@@ -85,32 +84,25 @@ class AddCredentialDialog(defaultPasswordLength: Int, evaluator: (String, Action
                 fieldset {
                     padding = Insets(0.0)
                     labelPosition = Orientation.HORIZONTAL
-                    hbox {
-                        spacing = 10.0
-                        alignment = Pos.CENTER_LEFT
-                        field("Password:", Orientation.HORIZONTAL) {
+                    field("Generated string:", Orientation.HORIZONTAL) {
+                        hgrow = Priority.ALWAYS
+                        maxWidth = Double.MAX_VALUE
+                        textfield {
+                            bind(generatedStringProperty)
+                            isEditable = false
+                            isMouseTransparent = false
+                            isFocusTraversable = true
                             hgrow = Priority.ALWAYS
                             maxWidth = Double.MAX_VALUE
-                            textfield {
-                                bind(passwordProperty)
-                                hgrow = Priority.ALWAYS
-                                maxWidth = Double.MAX_VALUE
-                                passwordField = this
+                            stringField = this
+                            val keyCodeCopy = KeyCodeCombination(KeyCode.C, KeyCombination.CONTROL_ANY)
+                            setOnKeyPressed {
+                                    event ->
+                                if(keyCodeCopy.match(event))
+                                    copySelectionToClipboard(generatedString)
                             }
-                        }
-                        button("Generate password") {
-                            action {
-                                passwordProperty.set(
-                                    CryptoUtils.generateRandomString(
-                                        getCharPoolContent(),
-                                        passwordLengthProperty.value
-                                    )
-                                )
-                            }
-                            Platform.runLater { this.requestFocus() }
                         }
                     }
-
                 }
             }
             form {
@@ -118,8 +110,12 @@ class AddCredentialDialog(defaultPasswordLength: Int, evaluator: (String, Action
                 fieldset {
                     padding = Insets(0.0)
                     hbox {
+                        alignment = Pos.CENTER_LEFT
+                        spacing = 15.0
+                        hgrow = Priority.ALWAYS
+                        maxWidth = Double.MAX_VALUE
                         field("Character groups to use:", Orientation.HORIZONTAL) {
-                            alignment = Pos.CENTER
+                            alignment = Pos.CENTER_LEFT
                             labelPosition = Orientation.VERTICAL
                             vgrow = Priority.ALWAYS
                             hbox {
@@ -136,9 +132,10 @@ class AddCredentialDialog(defaultPasswordLength: Int, evaluator: (String, Action
                         }
                         region {
                             hgrow = Priority.ALWAYS
+                            maxWidth = Double.MAX_VALUE
                         }
                         field("Length:", Orientation.HORIZONTAL) {
-                            alignment = Pos.CENTER
+                            alignment = Pos.CENTER_LEFT
                             labelPosition = Orientation.VERTICAL
                             hgrow = Priority.NEVER
                             maxWidth = 80.0
@@ -146,7 +143,7 @@ class AddCredentialDialog(defaultPasswordLength: Int, evaluator: (String, Action
                                 prefHeight = 30.0
                                 alignment = Pos.CENTER_LEFT
                                 vgrow = Priority.ALWAYS
-                                spinner(5, 40, defaultPasswordLength, 1, true, passwordLengthProperty) {
+                                spinner(1, 100, defaultPasswordLength, 1, true, stringLengthProperty) {
                                     maxWidth = 80.0
                                     prefWidth = 80.0
                                     intSpinner = this
@@ -156,7 +153,6 @@ class AddCredentialDialog(defaultPasswordLength: Int, evaluator: (String, Action
                     }
                 }
             }
-            this += errorLabel
         }
         dialogPane.content = v
         /*v.spacing = 5.0
@@ -164,24 +160,25 @@ class AddCredentialDialog(defaultPasswordLength: Int, evaluator: (String, Action
         v.add(errorLabel)
         v.maxWidth = Double.MAX_VALUE
         v.hgrow = Priority.ALWAYS*/
-        setResultConverter {
-                type: ButtonType ->
-            when(type) {
-                ButtonType.OK -> password
-                ButtonType.CANCEL -> null
-                ButtonType.CLOSE -> null
-                else -> null
-            }
-        }
-        dialogPane.lookupButton(ButtonType.OK).addEventFilter(ActionEvent.ACTION) { event ->
-            try {
-                evaluator(passwordField.text, event)
-            }
-            catch(e: Exception) {
+
+        dialogPane.lookupButton(generateButton).apply {
+            addEventFilter(ActionEvent.ACTION) { event ->
+                generatedStringProperty.set(
+                    CryptoUtils.generateRandomString(
+                        getCharPoolContent(),
+                        stringLengthProperty.value
+                    )
+                )
                 event.consume()
-                errorProperty.set(e.message)
-                dialogPane.scene.window.sizeToScene()
             }
+            Platform.runLater { this.requestFocus() }
+        }
+        dialogPane.lookupButton(copyButton).apply {
+            addEventFilter(ActionEvent.ACTION) { event ->
+                copySelectionToClipboard(generatedString)
+                event.consume()
+            }
+            disableWhen { generatedStringProperty.isEmpty }
         }
 
         intSpinner.getValueFactory().setConverter(
@@ -198,18 +195,17 @@ class AddCredentialDialog(defaultPasswordLength: Int, evaluator: (String, Action
                         }
                         ?.let {
                             when {
-                                it > PASSWORD_LENGTH_MAX -> PASSWORD_LENGTH_MAX
-                                it < PASSWORD_LENGTH_MIN -> PASSWORD_LENGTH_MIN
+                                it > STRING_LENGTH_MAX -> STRING_LENGTH_MAX
+                                it < STRING_LENGTH_MIN -> STRING_LENGTH_MIN
                                 else -> it
                             }
                         }
-                        ?: passwordLength)
+                        ?: stringLength)
                         .also {
                             intSpinner.editor.text = toString(it)
                         }
 
             }
         )
-
     }
 }

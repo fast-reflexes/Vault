@@ -1,5 +1,6 @@
 package com.lousseief.vault.service
 
+import com.lousseief.vault.crypto.Conversion
 import com.lousseief.vault.exception.FileException
 import com.lousseief.vault.exception.InternalException
 import com.lousseief.vault.model.Profile
@@ -23,10 +24,10 @@ object FileService {
         try {
             val userFile = File("../" + user + FILE_SUFFIX)
             val fileBytes = userFile.readBytes()
-            val fileText = ConversionService.bytesToUTF8(fileBytes)
+            val fileText = Conversion.bytesToUTF8(fileBytes) // content is Base64 but with line endings
             val parts = fileText.split("\n")
-            assert(parts.size == 8, { "Expected .vault file to contain 8 parts but was ${parts.size}" })
-            return Profile(user, parts[0], parts[1], parts[2], parts[3], parts[4], parts[5], parts[6], parts[7])
+            assert(parts.size == 6, { "Expected .vault file to contain 6 parts but was ${parts.size}" })
+            return Profile(user, parts[0], parts[1], parts[2], parts[3], parts[4], parts[5])
         }
         catch(e: AssertionError) {
             throw FileException(FileException.FileExceptionCause.CORRUPT_FILE, e)
@@ -39,11 +40,9 @@ object FileService {
 
     fun writeFile(user: Profile, overwrite: Boolean) {
         try {
-            println("saving!")
-            assert(overwrite || !userExists(user.name), { "Can't write to an existing .vault file without permission to overwrite" })
+            assert(overwrite || !userExists(user.name))
             val userFile = File("../" + user.name + FILE_SUFFIX)
-            userFile.writeBytes(ConversionService.UTF8ToBytes(user.toString()))
-            println("saved")
+            userFile.writeBytes(Conversion.UTF8ToBytes(user.toString()))
         }
         catch(e: AssertionError) {
             throw InternalException(InternalException.InternalExceptionCause.FILE_EXISTS, e)

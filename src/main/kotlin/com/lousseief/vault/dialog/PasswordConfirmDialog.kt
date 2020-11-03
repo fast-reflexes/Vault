@@ -1,19 +1,17 @@
 package com.lousseief.vault.dialog
 
+import com.lousseief.vault.controller.UserController
 import javafx.application.Platform
 import javafx.beans.property.SimpleStringProperty
 import javafx.event.ActionEvent
 import javafx.geometry.Pos
-import javafx.scene.control.ButtonType
-import javafx.scene.control.Dialog
-import javafx.scene.control.Label
-import javafx.scene.control.PasswordField
+import javafx.scene.control.*
 import javafx.scene.layout.Priority
 import javafx.scene.layout.VBox
 import javafx.scene.text.TextAlignment
 import tornadofx.*
 
-class PasswordConfirmDialog(evaluator: (String, ActionEvent) -> Unit): Dialog<String?>() {
+class PasswordConfirmDialog(evaluator: (String, ActionEvent) -> Unit = {_, _ -> Unit}): Dialog<String?>() {
 
     val errorProperty = SimpleStringProperty("")
 

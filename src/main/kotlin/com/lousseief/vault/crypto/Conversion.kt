@@ -1,10 +1,10 @@
-package com.lousseief.vault.service
+package com.lousseief.vault.crypto
 
 import org.apache.commons.codec.binary.Base64
 import org.apache.commons.codec.binary.Hex
 import org.apache.commons.codec.binary.StringUtils
 
-object ConversionService {
+object Conversion {
 
     fun bytesToHex(bytes: ByteArray): String =
         Hex.encodeHexString(bytes)

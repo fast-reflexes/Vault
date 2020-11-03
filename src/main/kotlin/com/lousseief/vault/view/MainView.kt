@@ -1,25 +1,18 @@
 package com.lousseief.vault.view
 
 import com.lousseief.vault.controller.UserController
-import com.lousseief.vault.dialog.PasswordConfirmDialog
+import com.lousseief.vault.dialog.ChangeMasterPasswordDialog
 import com.lousseief.vault.dialog.SingleInputDialog
+import com.lousseief.vault.dialog.StringGeneratorDialog
 import com.lousseief.vault.model.AssociationModel
 import com.lousseief.vault.model.AssociationProxy
-import com.lousseief.vault.model.Profile
 import de.jensd.fx.glyphs.fontawesome.FontAwesomeIcon
 import de.jensd.fx.glyphs.fontawesome.FontAwesomeIconView
 import javafx.application.Platform
 import javafx.beans.binding.Bindings
-import javafx.beans.binding.ListBinding
-import javafx.beans.binding.ObjectBinding
-import javafx.beans.binding.StringBinding
 import javafx.beans.property.SimpleBooleanProperty
 import javafx.beans.property.SimpleObjectProperty
 import javafx.beans.property.SimpleStringProperty
-import javafx.beans.property.StringProperty
-import javafx.beans.value.ChangeListener
-import javafx.beans.value.ObservableStringValue
-import javafx.beans.value.ObservableValue
 import javafx.collections.ListChangeListener
 import javafx.collections.ObservableList
 import javafx.collections.transformation.FilteredList
@@ -30,6 +23,7 @@ import javafx.geometry.Pos
 import javafx.scene.control.*
 import javafx.scene.layout.*
 import javafx.scene.paint.Color
+import javafx.scene.shape.Rectangle
 import javafx.scene.text.Font
 import javafx.scene.text.TextAlignment
 import javafx.util.Callback
@@ -63,37 +57,69 @@ class MainView : View() {
     val placeHolderFn = object : Callable<String> {
         override fun call(): String {
             println("Evaluating placeholder!")
-            if (controller.items.size == 0)
-                return "No entries in table.\n Press \"Add new entry\" to create your first entry"
-            else
-                return "No entries were matched by your filter.\n Please try again!"
+            return when(controller.items.size) {
+                0 -> "No entries in table.\n Press \"Add new entry\" to create your first entry"
+                else -> "No entries were matched by your filter.\n Please try again!"
+            }
         }
     }
     val tablePlaceHolder = Bindings.createStringBinding(
         placeHolderFn,
         controller.items
     )
-    val parameterQuery = SimpleStringProperty("All")
-    val query = SimpleStringProperty("")
-    val isNeededQuery = SimpleBooleanProperty(false)
-    val shouldBeDeactivatedQuery = SimpleBooleanProperty(false)
-    val isDeactivatedQuery = SimpleBooleanProperty(false)
-    val useQuery = SimpleBooleanProperty(false)
+    private val parameterQuery = SimpleStringProperty("All")
+    private val query = SimpleStringProperty("")
+    private val isNeededQuery = SimpleBooleanProperty(false)
+    private val shouldBeDeactivatedQuery = SimpleBooleanProperty(false)
+    private val isDeactivatedQuery = SimpleBooleanProperty(false)
+    private val useQuery = SimpleBooleanProperty(false)
 
     //val filterConditions: StringBinding
     //val filterFn: Callable<ObservableList<AssociationModel>>
     //val filtered: ObjectBinding<ObservableList<AssociationModel>>
     //val filtered: ListBinding<AssociationModel>
 
-    val filtered = FilteredList<AssociationModel>(controller.items)
-    val originalMainIdentifier = SimpleStringProperty(null)
+    private val filtered = FilteredList<AssociationModel>(controller.items)
+    private val originalMainIdentifier = SimpleStringProperty(null)
     val identity = SimpleStringProperty()
     val current = SimpleObjectProperty(AssociationModel())
     val prop = SimpleStringProperty();
     //val entryView = find<EntryView>(mapOf(EntryView::hej to prop))
 
+    private fun logout() {
+        controller.user = null
+        controller.altered.set(false)
+        replaceWith<LoginView>(
+            sizeToScene = true,
+            centerOnScreen = true
+        )
+    }
+
+    private val addHandler = {
+        password: String, newEntry: String ->
+            controller.addEntry(newEntry, password)
+    }
+
     override
     fun onDock() {
+        currentWindow!!.setOnCloseRequest {
+            if(controller.altered.value == true) {
+                val quitAnyway = ButtonType("Quit anyway", ButtonBar.ButtonData.OK_DONE)
+                val cancel = ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE)
+                val dialog = Alert(
+                    Alert.AlertType.CONFIRMATION,
+                    "You have data successfully added to your vault that was not saved to disk, do you really want to quit without saving it? If no, press \"Cancel\" and then press \"Save vault to disk\".",
+                    cancel, quitAnyway
+                )
+                (dialog.dialogPane.lookupButton(quitAnyway) as Button).isDefaultButton = false
+                (dialog.dialogPane.lookupButton(cancel) as Button).apply {
+                    isDefaultButton = true
+                    addEventFilter(ActionEvent.ACTION) { _ -> it.consume() }
+                }
+                dialog.headerText = "Do you really want to quit?"
+                dialog.showAndWait()
+            }
+        }
         super.onDock()
         print("Docking!")
         //primaryStage.minHeight = 600.0
@@ -150,7 +176,7 @@ class MainView : View() {
                     }
                 }
             }
-            lc.prefWidthProperty().bind(lv.widthProperty());
+            lc.prefWidthProperty().bind(lv.widthProperty())
             return lc
         }
     }
@@ -169,7 +195,12 @@ class MainView : View() {
 
     fun filterList() {
         if (useQuery.value) {
-            filtered.setPredicate { it !== null && Regex(query.value).containsMatchIn(it.mainIdentifier) }
+            try {
+                filtered.setPredicate { it !== null && Regex(query.value.replace("*", ".+")).containsMatchIn(it.mainIdentifier) }
+            }
+            catch(e: Exception) {
+                filtered.setPredicate { it !== null && it.mainIdentifier == query.value }
+            }
         } else
             filtered.setPredicate { println("In fn: " + it); it !== null }
     }
@@ -261,7 +292,7 @@ class MainView : View() {
         with(root) {
             this += hbox {
                 padding = Insets(10.0)
-                label("Offline vault - securing your passwords") {
+                label("Vault - securing your passwords") {
                     font = Font(20.0)
                 }
                 region {
@@ -269,240 +300,272 @@ class MainView : View() {
                 }
                 hyperlink("Logout", FontAwesomeIconView(FontAwesomeIcon.HOME)) {
                     action {
-                        //userController.user = null
-                        if(controller.altered.value == true)
-                            alert(
-                                type = Alert.AlertType.CONFIRMATION,
-                                header = "Do you really want to log out",
-                                content = "You have data successfully added to your vault that was not saved to disk, do you really want to log out without saving it? If no, press \"Cancel\" and then press \"Save vault to disk\".",
-                                actionFn = { type ->
-                                                if(type === ButtonType.OK)
-                                                    replaceWith<LoginView>(
-                                                        sizeToScene = true,
-                                                        centerOnScreen = true
-                                                    )
-                                }
+                        if(controller.altered.value == true) {
+                            val logoutAnyway = ButtonType("Logout anyway", ButtonBar.ButtonData.OK_DONE)
+                            val cancel = ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE)
+                            val dialog = Alert(
+                                Alert.AlertType.CONFIRMATION,
+                                "You have data successfully added to your vault that was not saved to disk, do you really want to log out without saving it? If no, press \"Cancel\" and then press \"Save vault to disk\".",
+                                cancel, logoutAnyway
                             )
-                        else {
-                            controller.user = null
-                            replaceWith<LoginView>(
-                                sizeToScene = true,
-                                centerOnScreen = true
-                            )
+                            (dialog.dialogPane.lookupButton(logoutAnyway) as Button).isDefaultButton = false
+                            (dialog.dialogPane.lookupButton(cancel) as Button).isDefaultButton = true
+                            dialog.headerText = "Do you really want to log out?"
+                            dialog.resultConverter = Callback {
+                                type: ButtonType ->
+                                    if(type === logoutAnyway)
+                                        logout()
+                                    type
+                            }
+                            dialog.showAndWait()
                         }
+                        else
+                            logout()
                     }
                 }
             }
-            this += tabpane {
-                tab("Associations") {
+            this += vbox {
                     vgrow = Priority.ALWAYS
                     maxHeight = Double.MAX_VALUE
-                    tabClosingPolicy = TabPane.TabClosingPolicy.UNAVAILABLE
-                    vbox {
-                        vgrow = Priority.ALWAYS
+                    separator() {
+                        prefHeight = 0.0
+                        maxHeight = 0.0
+                        minHeight = 0.0
+                    }
+                    hbox {
                         maxHeight = Double.MAX_VALUE
-                        hbox {
-                            maxHeight = Double.MAX_VALUE
-                            maxWidth = Double.MAX_VALUE
-                            hgrow = Priority.ALWAYS
+                        maxWidth = Double.MAX_VALUE
+                        padding = Insets(0.0)
+                        spacing = 0.0
+                        hgrow = Priority.ALWAYS
+                        vgrow = Priority.ALWAYS
+                        vbox {
                             vgrow = Priority.ALWAYS
-                            vbox {
-                                vgrow = Priority.ALWAYS
-                                hgrow = Priority.ALWAYS
-                                maxHeight = Double.MAX_VALUE
-                                padding = Insets(10.0)
-                                spacing = 10.0
-                                prefWidth = 300.0
-                                minWidth = 300.0
-                                maxWidth = Double.MAX_VALUE
-                                alignment = Pos.CENTER
-                                titledpane() {
-                                    val tp = this
-                                    spacing = 5.0
-                                    maxWidth = Double.MAX_VALUE
-                                    hgrow = Priority.NEVER
-                                    val hb = HBox().apply {
-                                        hgrow = Priority.NEVER
-                                        add(Label("Filter"))
-                                        add(Region().apply {
-                                            hgrow = Priority.ALWAYS
-                                            maxWidth = Double.MAX_VALUE
-                                        })
-                                        add(CheckBox().apply {
-                                            style { backgroundColor += Color.WHITE }
-                                            bind(useQuery)
-                                        })
-                                        prefWidthProperty().bind(tp.widthProperty().subtract(38))
-                                        maxWidthProperty().bind(tp.widthProperty().subtract(38))
-                                    }
-                                    this.setGraphic(hb)
-                                    isCollapsible = true
-                                    isExpanded = false
-                                    form {
-                                        padding = Insets(5.0, 8.0, 5.0, 8.0)
-                                        vbox {
-                                            fieldset {
-                                                labelPosition = Orientation.VERTICAL
-                                                padding = Insets(0.0)
-                                                field("Keyword") {
-                                                    paddingBottom = 5.0
-                                                    textfield() {
-                                                        bind(query)
-                                                    }
-                                                }
-                                                field("Parameter") {
-                                                    combobox<String> {
-                                                        items = listOf("All", "Main identifier", "Secondary identifier", "Category", "Comment").toObservable()
-                                                        bindSelected(parameterQuery)
-                                                        selectionModel.selectFirst()
-                                                        hgrow = Priority.ALWAYS
-                                                        maxWidth = Double.MAX_VALUE
-                                                    }
-                                                }
-                                            }
-                                            fieldset {
-                                                padding = Insets(10.0, 0.0, 5.0, 0.0)
-                                                labelPosition = Orientation.HORIZONTAL
-                                                vbox {
-                                                    padding = Insets(0.0)
-                                                    spacing = 5.0
-                                                    checkbox("Is needed?") { bind(isNeededQuery) }
-                                                    checkbox("Should be deactivated?") { bind(shouldBeDeactivatedQuery) }
-                                                    checkbox("Is deactivated?") { bind(isDeactivatedQuery) }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                titledpane("Vault entries") {
-                                    isCollapsible = false
-                                    maxWidth = Double.MAX_VALUE
-                                    hgrow = Priority.ALWAYS
-                                    vgrow = Priority.ALWAYS
-                                    maxHeight = Double.MAX_VALUE
-                                    val ti = this
-                                    listview(filtered as ObservableList<AssociationModel>) {
-                                    //listview(controller.items) {
-                                        vgrow = Priority.ALWAYS
-                                        hgrow = Priority.ALWAYS
-                                        textOverrun = OverrunStyle.ELLIPSIS
-                                        maxWidth = ti.width
-                                        maxHeight = Double.MAX_VALUE
-                                        maxWidth = Double.MAX_VALUE
-                                        cellFactory = CB(this)
-                                        bindSelected(model)
-                                        selectionModel.selectFirst()
-                                        minHeight = 200.0
-                                        table = this
-                                        Platform.runLater{ this.requestFocus() }
-                                        //columnResizePolicy = TableView.CONSTRAINED_RESIZE_POLICY
-                                        /*column("Vault entries", AssociationModel::mainIdentifierProperty) {
-                                            maxWidth = Double.MAX_VALUE
-                                            hgrow = Priority.ALWAYS
-                                            prefWidth = 400.0
-                                            style {
-                                                borderColor += box(all = Color.LIGHTGRAY)
-                                                borderWidth += box(all = 1.px)
-                                                borderStyle += BorderStrokeStyle.SOLID
-                                            }
-                                        }*/
-                                        placeholder = label {
-                                            bind(tablePlaceHolder)
-                                            textAlignment = TextAlignment.CENTER
-                                            isWrapText = true
-                                        }
-                                        // Update the person inside the view model on selection change
-                                        /*model.rebindOnChange(this) { ass ->
-                                            item = ass ?: AssociationModel()
-                                            if(ass !== null)
-                                                name.bind(ass.mainIdentifierProperty)
-                                            else
-                                                name.unbind()
-                                        }*/
-                                    }
-                                }
-                                button("Create new entry") {
-                                    vgrow = Priority.NEVER
-                                    hgrow = Priority.ALWAYS
-                                    maxWidth = Double.MAX_VALUE
-                                    action {
-                                        val newEntry = SingleInputDialog({
-                                                input: String, ev: ActionEvent ->
-                                            controller.validateNewEntry(input)
-                                            val password = PasswordConfirmDialog({
-                                                    password: String, _: ActionEvent ->
-                                                controller.addEntry(input, password)
-                                            }).showAndWait()
-                                            if(password.isEmpty)
-                                                ev.consume()
-                                        }, "Enter an identifier for your new entry").showAndWait()
-                                        if(newEntry.isPresent) {
-                                            table.selectionModel.selectLast()
-                                            table.requestFocus()
-                                        }
-                                        /*object: TextInputDialog() {
-                                            init {
-                                                val errorLabel =
-                                                    label {
-                                                        hgrow = Priority.ALWAYS
-                                                        vgrow = Priority.NEVER
-                                                        maxHeight = Double.MAX_VALUE
-                                                        minHeight = 0.0
-                                                        maxWidth = Double.MAX_VALUE
-                                                        textProperty().bind(errorProperty)
-                                                        textAlignment = TextAlignment.LEFT
-                                                        alignment = Pos.CENTER
-                                                        style {
-                                                            textFill = Color.RED
-                                                            backgroundColor += Color.BLUE
-                                                        }
-                                                    }
-
-                                            }
-                                        }.show()*/
-                                        /*find<ConfirmNewEntryView>().openModal(
-                                            resizable = false,
-                                            block = true
-                                        )*/
-                                        //controller.add();
-                                        //selectBox.isDisable = false
-                                    }
-                                    // Save button is disabled until every field has a value
-                                    //disableProperty().bind(SimpleBooleanProperty(user.associations.size == 0).asObject());
-                                }
-                            }
-                            vbox {
-                                style {
-                                    backgroundColor += Color.gray(0.7)
-                                }
-                                minWidth = 400.0
-                                minHeight = 400.0
-                                hgrow = Priority.ALWAYS
-                                vgrow = Priority.ALWAYS
-                                maxHeight = Double.MAX_VALUE
-                                padding = Insets(10.0)
-                                this += find<EntryView>(mapOf(EntryView::originalMainIdentifier to originalMainIdentifier)).root
-                            }
-                        }
-                        separator()
-                        hbox {
-                            vgrow = Priority.NEVER
+                            hgrow = Priority.NEVER
+                            maxHeight = Double.MAX_VALUE
                             padding = Insets(10.0)
                             spacing = 10.0
-                            alignment = Pos.CENTER_RIGHT
-                            button("Save vault to disk") {
-                                enableWhen(controller.altered.eq(true))
-                                action {
-                                    controller.save()
-                                    controller.altered.set(false)
+                            prefWidth = 300.0
+                            minWidth = 300.0
+                            maxWidth = 300.0
+                            prefWidth = 300.0
+                            alignment = Pos.CENTER
+                            titledpane {
+                                val tp = this
+                                spacing = 5.0
+                                maxWidth = Double.MAX_VALUE
+                                hgrow = Priority.NEVER
+                                val hb = HBox().apply {
+                                    hgrow = Priority.NEVER
+                                    add(Label("Filter"))
+                                    add(Region().apply {
+                                        hgrow = Priority.ALWAYS
+                                        maxWidth = Double.MAX_VALUE
+                                    })
+                                    add(CheckBox().apply {
+                                        style { backgroundColor += Color.WHITE }
+                                        bind(useQuery)
+                                    })
+                                    prefWidthProperty().bind(tp.widthProperty().subtract(38))
+                                    maxWidthProperty().bind(tp.widthProperty().subtract(38))
                                 }
+                                this.graphic = hb
+                                isCollapsible = true
+                                isExpanded = false
+                                form {
+                                    padding = Insets(5.0, 8.0, 5.0, 8.0)
+                                    vbox {
+                                        fieldset {
+                                            labelPosition = Orientation.VERTICAL
+                                            padding = Insets(0.0)
+                                            field("Keyword (* matches anything)") {
+                                                paddingBottom = 5.0
+                                                textfield {
+                                                    bind(query)
+                                                }
+                                            }
+                                            field("Parameter") {
+                                                combobox<String> {
+                                                    items = listOf("All", "Main identifier", "Secondary identifier", "Category", "Comment").toObservable()
+                                                    bindSelected(parameterQuery)
+                                                    selectionModel.selectFirst()
+                                                    hgrow = Priority.ALWAYS
+                                                    maxWidth = Double.MAX_VALUE
+                                                }
+                                            }
+                                        }
+                                        fieldset {
+                                            padding = Insets(10.0, 0.0, 5.0, 0.0)
+                                            labelPosition = Orientation.HORIZONTAL
+                                            vbox {
+                                                padding = Insets(0.0)
+                                                spacing = 5.0
+                                                checkbox("Is needed?") { bind(isNeededQuery) }
+                                                checkbox("Should be deactivated?") { bind(shouldBeDeactivatedQuery) }
+                                                checkbox("Is deactivated?") { bind(isDeactivatedQuery) }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            titledpane("Vault entries") {
+                                isCollapsible = false
+                                maxWidth = Double.MAX_VALUE
+                                hgrow = Priority.ALWAYS
+                                vgrow = Priority.ALWAYS
+                                maxHeight = Double.MAX_VALUE
+                                val ti = this
+                                listview(filtered as ObservableList<AssociationModel>) {
+                                //listview(controller.items) {
+                                    vgrow = Priority.ALWAYS
+                                    hgrow = Priority.ALWAYS
+                                    textOverrun = OverrunStyle.ELLIPSIS
+                                    maxWidth = ti.width
+                                    maxHeight = Double.MAX_VALUE
+                                    maxWidth = Double.MAX_VALUE
+                                    cellFactory = CB(this)
+                                    bindSelected(model)
+                                    selectionModel.selectFirst()
+                                    table = this
+                                    Platform.runLater{ this.requestFocus() }
+                                    //columnResizePolicy = TableView.CONSTRAINED_RESIZE_POLICY
+                                    /*column("Vault entries", AssociationModel::mainIdentifierProperty) {
+                                        maxWidth = Double.MAX_VALUE
+                                        hgrow = Priority.ALWAYS
+                                        prefWidth = 400.0
+                                        style {
+                                            borderColor += box(all = Color.LIGHTGRAY)
+                                            borderWidth += box(all = 1.px)
+                                            borderStyle += BorderStrokeStyle.SOLID
+                                        }
+                                    }*/
+                                    placeholder = label {
+                                        bind(tablePlaceHolder)
+                                        textAlignment = TextAlignment.CENTER
+                                        isWrapText = true
+                                    }
+                                    // Update the person inside the view model on selection change
+                                    /*model.rebindOnChange(this) { ass ->
+                                        item = ass ?: AssociationModel()
+                                        if(ass !== null)
+                                            name.bind(ass.mainIdentifierProperty)
+                                        else
+                                            name.unbind()
+                                    }*/
+                                }
+                            }
+                            button("Create new entry") {
+                                vgrow = Priority.NEVER
+                                hgrow = Priority.ALWAYS
+                                maxWidth = Double.MAX_VALUE
+                                action {
+                                    val newEntry = SingleInputDialog({
+                                        input: String, ev: ActionEvent ->
+                                            controller.validateNewEntry(input)
+                                            val entryAdded = controller.passwordRequiredAction {
+                                                password: String, _: ActionEvent? ->
+                                                    addHandler(password, input)
+                                            }
+                                            if(!entryAdded)
+                                                ev.consume()
+                                    }, "Enter an identifier for your new entry").showAndWait()
+                                    if(newEntry.isPresent) {
+                                        table.selectionModel.selectLast()
+                                        table.requestFocus()
+                                    }
+                                    /*object: TextInputDialog() {
+                                        init {
+                                            val errorLabel =
+                                                label {
+                                                    hgrow = Priority.ALWAYS
+                                                    vgrow = Priority.NEVER
+                                                    maxHeight = Double.MAX_VALUE
+                                                    minHeight = 0.0
+                                                    maxWidth = Double.MAX_VALUE
+                                                    textProperty().bind(errorProperty)
+                                                    textAlignment = TextAlignment.LEFT
+                                                    alignment = Pos.CENTER
+                                                    style {
+                                                        textFill = Color.RED
+                                                        backgroundColor += Color.BLUE
+                                                    }
+                                                }
+
+                                        }
+                                    }.show()*/
+                                    /*find<ConfirmNewEntryView>().openModal(
+                                        resizable = false,
+                                        block = true
+                                    )*/
+                                    //controller.add();
+                                    //selectBox.isDisable = false
+                                }
+                                // Save button is disabled until every field has a value
+                                //disableProperty().bind(SimpleBooleanProperty(user.associations.size == 0).asObject());
+                            }
+                        }
+                        vbox {
+                            style {
+                                backgroundColor += Color.gray(0.7)
+                                borderWidth += box(0.px)
+                            }
+                            hgrow = Priority.ALWAYS
+                            vgrow = Priority.ALWAYS
+                            maxHeight = Double.MAX_VALUE
+                            maxWidth = Double.MAX_VALUE
+                            useMaxWidth = true
+
+                            padding = Insets(10.0)
+                            this += find<EntryView>(mapOf(EntryView::originalMainIdentifier to originalMainIdentifier)).root
+                        }
+                    }
+                    separator() {
+                        prefHeight = 0.0
+                        maxHeight = 0.0
+                        minHeight = 0.0
+                    }
+                    hbox {
+                        vgrow = Priority.NEVER
+                        padding = Insets(10.0)
+                        spacing = 10.0
+                        alignment = Pos.CENTER_RIGHT
+                        button("Settings") {}
+                        button("Change master password") {
+                            action {
+                                val newPassword = ChangeMasterPasswordDialog {
+                                    oldPassword, newPassword ->
+                                        controller.changeMasterPassword(oldPassword, newPassword)
+                                }.showAndWait()
+                                if(newPassword.isPresent) {
+                                    alert(
+                                        Alert.AlertType.INFORMATION,
+                                        "Master password successfully changed",
+                                        "The master password was updated, the vault must be saved to disk before quitting."
+                                    )
+                                    controller.altered.set(true)
+                                }
+                            }
+                        }
+                        button("String generator") {
+                            action {
+                                StringGeneratorDialog(controller.user!!.settings.passwordLength).showAndWait()
+
+                            }
+                        }
+                        region {
+                            hgrow = Priority.ALWAYS
+                            maxWidth = Double.MAX_VALUE
+                        }
+                        button("Save vault to disk") {
+                            enableWhen(controller.altered.eq(true))
+                            action {
+                                controller.save()
+                                controller.altered.set(false)
                             }
                         }
                     }
-                }
-                tab("Settings") {
-                }
             }
+        }
             /*top = borderpane  {
                     left = selectBox
                     right =
@@ -547,6 +610,5 @@ class MainView : View() {
             //openInternalWindow(net);
         }*/
             //selectBox.selectionModel.select(null)
-        }
     }
 }

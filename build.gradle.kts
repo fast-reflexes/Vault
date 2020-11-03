@@ -43,7 +43,7 @@ dependencies {
     implementation("org.controlsfx:controlsfx:9.0.0")
     implementation("commons-codec:commons-codec:1.14")
 
-    testCompile("junit", "junit", "4.12")
+    testImplementation("junit", "junit", "4.12")
 }
 
 configure<JavaPluginConvention> {

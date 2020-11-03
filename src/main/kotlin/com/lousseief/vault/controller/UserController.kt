@@ -1,24 +1,28 @@
 package com.lousseief.vault.controller
 
+import com.lousseief.vault.dialog.PasswordConfirmDialog
 import javafx.beans.Observable
-import javafx.beans.property.SimpleStringProperty
 import javafx.collections.FXCollections
-import javafx.collections.ObservableArray
 import javafx.collections.ObservableList
 import javafx.util.Callback
 import tornadofx.Controller
 import tornadofx.asObservable
 import com.lousseief.vault.exception.AuthenticationException;
+import com.lousseief.vault.exception.InternalException
 import com.lousseief.vault.model.*
 import javafx.beans.property.SimpleBooleanProperty
+import javafx.event.ActionEvent
+import java.time.Instant
+import java.util.*
+import kotlin.concurrent.schedule
 
 class UserController: Controller() {
 
+    // whether the data in memory is altered so that a save to file is possible / to recommend
     val altered = SimpleBooleanProperty(false)
 
     var user: Profile? = null
     set(value) {
-        println("Running setter")
         field = value
         if(value !== null) {
             /*categories = FXCollections.observableArrayList(
@@ -31,8 +35,8 @@ class UserController: Controller() {
                 }
             )*/
             //categories = mutableListOf<String>().asObservable()
-            items.addAll((user?.associations ?: emptyMap<String, Association>()).map { AssociationModel(it.value) })
             categories.addAll(
+                mutableListOf("") +
                 mutableListOf<String?>()
                     .apply { addAll(user?.settings?.categories ?: emptyList<String>()) }
             )
@@ -43,8 +47,58 @@ class UserController: Controller() {
         }
     }
 
-    //var items: ObservableList<AssociationModel> = mutableListOf<AssociationModel>().asObservable()
-    var items: ObservableList<AssociationModel> = FXCollections.observableArrayList(
+    private fun cancelSavedMasterPassword() {
+        savedPasswordExpiry = null
+        savedPasswordResetter?.cancel()
+        savedPasswordResetter = null
+    }
+
+    private fun resetSavedMasterPassword() {
+        savedPasswordExpiry = Instant.now().plusMillis(user!!.settings.savePasswordForMinutes * 60 * 1000L)
+        savedPasswordResetter?.cancel()
+        savedPasswordResetter =  Timer(false)
+            .schedule(user!!.settings.savePasswordForMinutes * 60 * 1000L) { println("reset!"); savedMasterPassword = null }
+    }
+
+    private var savedPasswordResetter: TimerTask? = null
+    private var savedPasswordExpiry: Instant? = null
+    private var savedMasterPassword: String? = null
+        set(value) {
+            if(value === null) {
+                field = null
+                cancelSavedMasterPassword()
+            }
+            else if (user!!.settings.savePasswordForMinutes != 0) {
+                field = value
+                resetSavedMasterPassword()
+            }
+        }
+
+    fun passwordRequiredAction(action: (password: String, event: ActionEvent?) -> Unit): Boolean {
+        if(savedMasterPassword !== null && savedPasswordExpiry !== null && Instant.now().isBefore(savedPasswordExpiry)) {
+            resetSavedMasterPassword()
+            action(savedMasterPassword!!, null)
+            return true
+        }
+        else {
+            savedMasterPassword = null
+            val result = PasswordConfirmDialog { password: String, event: ActionEvent ->
+                action(password, event)
+                savedMasterPassword = password
+            }.showAndWait()
+            return result.isPresent
+        }
+    }
+
+    fun setUser(userToSet: Profile, associations: MutableMap<String, Association>, password: String) {
+        user = userToSet;
+        items.addAll(associations.map { AssociationModel(it.value) })
+        if(userToSet.settings.savePasswordForMinutes != 0)
+            savedMasterPassword = password
+    }
+
+
+    val items: ObservableList<AssociationModel> = FXCollections.observableArrayList(
         object: Callback<AssociationModel, Array<Observable>> {
             override fun call(assoc: AssociationModel): Array<Observable> {
                 return arrayOf<Observable>(
@@ -59,10 +113,8 @@ class UserController: Controller() {
             }
         }
     )
-    private set
 
-    var categories: ObservableList<String> = mutableListOf("").asObservable()
-    private set
+    val categories: ObservableList<String> = mutableListOf<String>().asObservable()
 
     fun addEntry(name: String, password: String?) {
         if(password === null || password.length == 0)
@@ -88,23 +140,19 @@ class UserController: Controller() {
     }
 
     fun addSecondaryIdentifier(mainId: String, newSecondaryId: String) {
-        val assoc: Association? = user!!.associations[mainId]
-        if(assoc !== null) {
-            assoc.secondaryIdentifiers.add(newSecondaryId)
-            items
-                .find { it?.mainIdentifier === mainId }?.secondaryIdentifiersProperty?.add(newSecondaryId)
-            altered.set(true)
-        }
-
+        if(!items.any { it.mainIdentifier == mainId })
+            throw InternalException(InternalException.InternalExceptionCause.MISSING_IDENTIFIER)
+        items
+            .find { it?.mainIdentifier === mainId }?.secondaryIdentifiersProperty?.add(newSecondaryId)
+        altered.set(true)
     }
 
     fun removeSecondaryIdentifier(mainId: String, secondaryId: String) {
-        val assoc: Association? = user!!.associations[mainId]
-        if(assoc !== null) {
-            assoc.secondaryIdentifiers.remove(secondaryId)
-            items
-                .find { it?.mainIdentifier === mainId }?.secondaryIdentifiersProperty?.remove(secondaryId)
-        }
+        if(!items.any { it.mainIdentifier == mainId })
+            throw InternalException(InternalException.InternalExceptionCause.MISSING_IDENTIFIER)
+        items
+            .find { it?.mainIdentifier === mainId }?.secondaryIdentifiersProperty?.remove(secondaryId)
+        altered.set(true)
     }
 
     fun validateNewEntry(name: String?) {
@@ -162,4 +210,15 @@ class UserController: Controller() {
     fun updateCredentials(identifier: String, credentials: List<Credential>, password: String) =
         user!!.updateCredentials(identifier, credentials, password)
 
+    fun getUserNames() =
+        user!!.userNames
+
+    fun setUserNames(nextUserNames: MutableMap<String, Int>) =
+        user!!.userNames.apply {
+            clear()
+            putAll(nextUserNames)
+        }
+
+    fun changeMasterPassword(oldPassword: String, newPassword: String) =
+        user!!.accessVault(oldPassword, null, true, newPassword)
 }

@@ -11,10 +11,10 @@ import tornadofx.*
 // class representing a credential undergoing change in the UI
 class CredentialProxy: ItemViewModel<CredentialModel>() {
 
-    val identities = bind(CredentialModel::identitiesProperty)
-    val password = bind(CredentialModel::passwordProperty)
-    val created = bind(CredentialModel::createdProperty)
-    val lastUpdated = bind(CredentialModel::lastUpdatedProperty)
+    val identities = bind(CredentialModel::identitiesProperty, true)
+    val password = bind(CredentialModel::passwordProperty, true)
+    val created = bind(CredentialModel::createdProperty, true)
+    val lastUpdated = bind(CredentialModel::lastUpdatedProperty, true)
 }
 
 // class representing a credential in the UI
@@ -29,7 +29,7 @@ class CredentialModel() {
     var lastUpdated by lastUpdatedProperty
 
     constructor(cred: Credential) : this() {
-        identitiesProperty.set(cred.identities.asObservable())
+        identitiesProperty.setAll(cred.identities)
         passwordProperty.set(cred.password)
         createdProperty.set(cred.created)
         lastUpdatedProperty.set(cred.lastUpdated)
@@ -42,4 +42,17 @@ class CredentialModel() {
     override
     fun toString(): String =
         password
+}
+
+// actual underlying data classes with the full information
+data class Credential(
+    val identities: List<String>,
+    val password: String,
+    val created: Instant = Instant.now(),
+    val lastUpdated: Instant = Instant.now()
+) {
+    companion object {
+        fun fromModel(model: CredentialModel) =
+            Credential(model.identities, model.password, model.created, model.lastUpdated)
+    }
 }

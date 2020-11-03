@@ -2,18 +2,15 @@ package com.lousseief.vault.view
 
 import com.lousseief.vault.controller.CredentialsController
 import com.lousseief.vault.controller.UserController
-import com.lousseief.vault.dialog.PasswordConfirmDialog
+import com.lousseief.vault.dialog.AddCredentialDialog
 import com.lousseief.vault.dialog.SingleInputDialog
 import com.lousseief.vault.model.AssociationProxy
-import com.lousseief.vault.model.AssociationModel
-import com.lousseief.vault.model.CredentialModel
 import de.jensd.fx.glyphs.fontawesome.FontAwesomeIcon
 import de.jensd.fx.glyphs.fontawesome.FontAwesomeIconView
 import javafx.application.Platform
 import javafx.beans.binding.Bindings
 import javafx.beans.binding.IntegerBinding
 import javafx.beans.property.SimpleStringProperty
-import javafx.concurrent.Task
 import javafx.event.ActionEvent
 import javafx.geometry.Insets
 import javafx.geometry.Orientation
@@ -21,13 +18,11 @@ import javafx.geometry.Pos
 import javafx.scene.control.*
 import javafx.scene.layout.BorderStrokeStyle
 import javafx.scene.layout.Priority
-import javafx.scene.layout.Region
-import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
 import javafx.scene.text.TextAlignment
 import javafx.util.Callback
 import tornadofx.*
-import java.awt.GridBagConstraints.VERTICAL
+import java.time.Instant
 
 class EntryView: View() {
 
@@ -45,7 +40,7 @@ class EntryView: View() {
     }.apply { bind(originalMainIdentifier) }
     override
     fun onUndock() {
-        println("UNDOCKING FRAGMENT");
+        println("UNDOCKING FRAGMENT")
     }
 
     class CategoryListCell : ListCell<String?>() {
@@ -54,13 +49,13 @@ class EntryView: View() {
         fun updateItem(item: String?, empty: Boolean) {
             super.updateItem(item, empty)
             if (item === "") {
-                setText("Select category");
-                setDisable(true)
-                setStyle("-fx-opacity: 0.4")
+                text = "Select category"
+                isDisable = true
+                style = "-fx-opacity: 0.4"
             } else {
-                setText(item)
-                setDisable(false)
-                setStyle("-fx-opacity: 1.0")
+                text = item
+                isDisable = false
+                style = "-fx-opacity: 1.0"
             }
         }
     }
@@ -72,8 +67,46 @@ class EntryView: View() {
             CategoryListCell()
     }
 
+    /**
+     * Handlers for actions requiring password
+     */
+    private val updateHandler = {
+        password: String, _: ActionEvent? ->
+            val oldIdentifier = originalMainIdentifier.value
+            val newIdentifier = model.mainIdentifier.value
+            controller.updateAssociation(
+                oldIdentifier,
+                model.mainIdentifier.value,
+                model.getCurrentStateAsAssociation(),
+                password)
+            println("Before commit: " + model.mainIdentifier)
+            model.commit()
+            assert(model.mainIdentifier.value !== null)
+            assert((oldIdentifier == newIdentifier) == (oldIdentifier == model.mainIdentifier.value))
+            println("After commit: " + model.mainIdentifier)
+    }
+
+    private val deleteEntryHandler = {
+        password: String, _: ActionEvent? ->
+            controller.removeEntry(model.mainIdentifier.value, password)
+    }
+
+    private val setCredentialsHandler = {
+        password: String, _: ActionEvent? ->
+            val credentials = controller.getCredentials(originalMainIdentifier.value, password)
+            credentialsController.setCredentials(credentials)
+            credentialsController.setUserNames(controller.user!!.userNames)
+    }
+
+    override fun onDock() {
+        Platform.runLater {
+            primaryStage.minWidth = currentStage!!.width
+            primaryStage.minHeight = currentStage!!.height
+        }
+    }
     override
     val root = vbox {
+        Platform.runLater { println("2Width: " + this.width) }
         style {
             borderColor += box(all = Color.LIGHTGRAY)
             borderWidth += box(all = 1.px)
@@ -81,7 +114,7 @@ class EntryView: View() {
             backgroundColor += Color.gray(0.97)
 
         }
-        minWidth = 900.0
+        minWidth = 891.0
         hgrow = Priority.ALWAYS
         vgrow = Priority.ALWAYS
         spacing = 10.0
@@ -108,6 +141,8 @@ class EntryView: View() {
                         vbox {
                             padding = Insets(0.0)
                             spacing = 10.0
+                            minWidth = 425.0
+                            prefWidth = 425.0
                             hgrow = Priority.ALWAYS
                             vgrow = Priority.ALWAYS
                             maxWidth = Double.MAX_VALUE
@@ -150,13 +185,66 @@ class EntryView: View() {
                                     vgrow = Priority.ALWAYS
                                     labelPosition = Orientation.VERTICAL
                                 }
-                                hbox {
+                                gridpane {
+                                    hgap = 10.0
+                                    hgrow = Priority.ALWAYS
+                                    maxWidth = Double.MAX_VALUE
+                                    constraintsForColumn(0).percentWidth = 50.0
+                                    constraintsForColumn(1).percentWidth = 50.0
+                                    row {
+                                        button("Remove secondary identifier") {
+                                            vgrow = Priority.NEVER
+                                            hgrow = Priority.ALWAYS
+                                            maxWidth = Double.MAX_VALUE
+                                            //minWidth = 180.0
+                                            textAlignment = TextAlignment.CENTER
+                                            alignment = Pos.CENTER
+                                            disableWhen(secondaryIdentifier.isNull)
+                                            action {
+                                                if (secondaryIdentifier.value !== null && secondaryIdentifier.value != "")
+                                                    model.secondaryIdentifiers.remove(secondaryIdentifier.value)
+                                                //controller.removeSecondaryIdentifier(model.mainIdentifier.value, secondaryIdentifier.value)
+                                                /*val removedId = SingleInputDialog({ input: String? ->
+                                                    if (input === null || input.isEmpty())
+                                                        throw Exception("Empty secondary identifier not allowed, please try again.")
+                                                    else if (model.secondaryIdentifiers.value.filter { it.equals(input, true) }
+                                                            .isNotEmpty())
+                                                        throw Exception("Secondary identifier already exists, all categories must have unique names.")
+                                                }, "Enter a name for your new secondary identifier").showAndWait()
+                                                if (newId.isPresent) {
+                                                    controller.addSecondaryIdentifier(model.mainIdentifier.value, newId.get())
+                                                }*/
+                                            }
+                                        }
+                                        button("Add secondary identifier") {
+                                            vgrow = Priority.NEVER
+                                            hgrow = Priority.ALWAYS
+                                            maxWidth = Double.MAX_VALUE
+                                            //minWidth = 180.0
+                                            textAlignment = TextAlignment.CENTER
+                                            alignment = Pos.CENTER
+                                            action {
+                                                val newId = SingleInputDialog({ input: String?, _: ActionEvent ->
+                                                    if (input === null || input.isEmpty())
+                                                        throw Exception("Empty secondary identifier not allowed, please try again.")
+                                                    else if (model.secondaryIdentifiers.value.filter { it.equals(input, true) }
+                                                            .isNotEmpty())
+                                                        throw Exception("Secondary identifier already exists, all secondary identifier must be unique.")
+                                                }, "Enter a name for your new secondary identifier").showAndWait()
+                                                if (newId.isPresent)
+                                                    model.secondaryIdentifiers.add(newId.get())
+                                                //controller.addSecondaryIdentifier(model.mainIdentifier.value, newId.get())
+                                            }
+                                        }
+                                    }
+                                }
+                                /*hbox {
                                     spacing = 10.0
                                     button("Remove secondary identifier") {
                                         vgrow = Priority.NEVER
                                         hgrow = Priority.ALWAYS
                                         maxWidth = Double.MAX_VALUE
-                                        minWidth = 180.0
+                                        //minWidth = 180.0
                                         textAlignment = TextAlignment.CENTER
                                         alignment = Pos.CENTER
                                         disableWhen(secondaryIdentifier.isNull)
@@ -180,7 +268,7 @@ class EntryView: View() {
                                         vgrow = Priority.NEVER
                                         hgrow = Priority.ALWAYS
                                         maxWidth = Double.MAX_VALUE
-                                        minWidth = 180.0
+                                        //minWidth = 180.0
                                         textAlignment = TextAlignment.CENTER
                                         alignment = Pos.CENTER
                                         action {
@@ -196,7 +284,7 @@ class EntryView: View() {
                                                 //controller.addSecondaryIdentifier(model.mainIdentifier.value, newId.get())
                                         }
                                     }
-                                }
+                                }*/
                             }
                             hbox {
                                 spacing = 10.0
@@ -244,8 +332,12 @@ class EntryView: View() {
                         vbox {
                             padding = Insets(0.0)
                             spacing = 10.0
+                            minWidth = 425.0
+                            prefWidth = 425.0
+                            maxWidth = Double.MAX_VALUE
                             vgrow = Priority.ALWAYS
-                            hgrow = Priority.NEVER
+                            hgrow = Priority.ALWAYS
+
                             field("Comments", Orientation.VERTICAL) {
                                 textarea(model.comment) {
                                     vgrow = Priority.ALWAYS
@@ -287,11 +379,17 @@ class EntryView: View() {
                 alignment = Pos.CENTER
                 button("Credentials") {
                     action {
-                        PasswordConfirmDialog { password: String, _: ActionEvent ->
-                            val credentials = controller.getCredentials(originalMainIdentifier.value, password)
-                            credentialsController.credentials.setAll(credentials.map{ CredentialModel(it) })
-                            find<CredentialsView>(mapOf(CredentialsView::mainIdentifier to originalMainIdentifier)).openModal()
-                        }.showAndWait()
+                        val credentialsSet = controller.passwordRequiredAction(setCredentialsHandler)
+                        if(credentialsSet) {
+                            // credentialsController loaded and ready
+                            find<CredentialsView>(mapOf(CredentialsView::mainIdentifier to originalMainIdentifier))
+                                .openModal(
+                                    block = true,
+                                    resizable = false
+                                )
+                            if(credentialsController.credentialsSaved) // signal that saving the entire vault is now possible
+                                controller.altered.set(true)
+                        }
                     }
                 }
                 region {
@@ -307,12 +405,8 @@ class EntryView: View() {
                             dialogPane.buttonTypes.remove(ButtonType.OK)
                             dialogPane.buttonTypes.add(deleteButtonType)
                             dialogPane.lookupButton(deleteButtonType).addEventFilter(ActionEvent.ACTION) { event ->
-                                val password = PasswordConfirmDialog{
-                                        password: String, _: ActionEvent ->
-                                    controller.removeEntry(model.mainIdentifier.value, password)
-                                    //model.item = null
-                                }.showAndWait()
-                                if(password.isEmpty)
+                                val entryRemoved = controller.passwordRequiredAction(deleteEntryHandler)
+                                if(entryRemoved)
                                     event.consume()
                             }
                         }
@@ -343,22 +437,8 @@ class EntryView: View() {
                 button("Keep changes") {
                     enableWhen(model.dirty)
                     action {
-                        if(model.isValid) {
-                            PasswordConfirmDialog{ password: String, _: ActionEvent ->
-                                val oldIdentifier = originalMainIdentifier.value
-                                val newIdentifier = model.mainIdentifier.value
-                                controller.updateAssociation(
-                                    oldIdentifier,
-                                    model.mainIdentifier.value,
-                                    model.getCurrentStateAsAssociation(),
-                                    password)
-                                println("Before commit: " + model.mainIdentifier)
-                                model.commit()
-                                assert(model.mainIdentifier.value !== null)
-                                assert((oldIdentifier == newIdentifier) == (oldIdentifier == model.mainIdentifier.value))
-                                println("After commit: " + model.mainIdentifier)
-                            }.showAndWait()
-                        }
+                        if(model.isValid)
+                            controller.passwordRequiredAction(updateHandler)
                         else
                             alert(
                                 type = Alert.AlertType.ERROR,

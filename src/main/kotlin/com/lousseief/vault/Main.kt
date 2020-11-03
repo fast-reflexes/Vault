@@ -8,13 +8,8 @@ import com.lousseief.vault.view.LoginView
 
 class VaultApp : App(LoginView::class) {
 
-    init {
-        println("hej");
-    }
-
-    override
-    fun start(stage: Stage) {
-
+    override fun start(stage: Stage) {
+        //stage.isResizable = false
         //stage.sizeToScene()
         super.start(stage)
     }
