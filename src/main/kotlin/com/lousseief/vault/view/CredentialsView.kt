@@ -366,7 +366,7 @@ class CredentialsView: View() {
                                                             if (input.isEmpty())
                                                                 throw Exception("Empty login name not allowed, please try again.")
                                                             else if (model.identities.value.any {
-                                                                    it.toLowerCase() == input.toLowerCase()
+                                                                    it.lowercase() == input.lowercase()
                                                                 })
                                                                 throw Exception("Login name already exists, please try again.")
                                                         },

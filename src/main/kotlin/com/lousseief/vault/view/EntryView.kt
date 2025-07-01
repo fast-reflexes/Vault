@@ -231,8 +231,11 @@ class EntryView: View() {
                                                             .isNotEmpty())
                                                         throw Exception("Secondary identifier already exists, all secondary identifier must be unique.")
                                                 }, "Enter a name for your new secondary identifier").showAndWait()
-                                                if (newId.isPresent)
+                                                if (newId.isPresent) {
                                                     model.secondaryIdentifiers.add(newId.get())
+                                                    model.secondaryIdentifiers.sortWith { a, b -> a.compareTo(b) }
+                                                }
+
                                                 //controller.addSecondaryIdentifier(model.mainIdentifier.value, newId.get())
                                             }
                                         }

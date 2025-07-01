@@ -12,6 +12,8 @@ import com.lousseief.vault.exception.InternalException
 import com.lousseief.vault.model.*
 import javafx.beans.property.SimpleBooleanProperty
 import javafx.event.ActionEvent
+import tornadofx.compareTo
+import tornadofx.sortWith
 import java.time.Instant
 import java.util.*
 import kotlin.concurrent.schedule
@@ -74,8 +76,8 @@ class UserController: Controller() {
             }
         }
 
-    fun passwordRequiredAction(action: (password: String, event: ActionEvent?) -> Unit): Boolean {
-        if(savedMasterPassword !== null && savedPasswordExpiry !== null && Instant.now().isBefore(savedPasswordExpiry)) {
+    fun passwordRequiredAction(action: (password: String, event: ActionEvent?) -> Unit, requireFreshPassword: Boolean = false): Boolean {
+        if(!requireFreshPassword && savedMasterPassword !== null && savedPasswordExpiry !== null && Instant.now().isBefore(savedPasswordExpiry)) {
             resetSavedMasterPassword()
             action(savedMasterPassword!!, null)
             return true
@@ -93,6 +95,7 @@ class UserController: Controller() {
     fun setUser(userToSet: Profile, associations: MutableMap<String, Association>, password: String) {
         user = userToSet;
         items.addAll(associations.map { AssociationModel(it.value) })
+        items.sortWith { a, b -> a.mainIdentifierProperty.compareTo(b.mainIdentifierProperty) }
         if(userToSet.settings.savePasswordForMinutes != 0)
             savedMasterPassword = password
     }
@@ -124,6 +127,7 @@ class UserController: Controller() {
         //addition.mainIdentifier = name
         //user!!.associations.put(name, addition)
         items.add(AssociationModel(addedAssociation));
+        items.sortWith { a, b -> a.mainIdentifierProperty.compareTo(b.mainIdentifierProperty) }
         altered.set(true)
     }
 
@@ -193,6 +197,13 @@ class UserController: Controller() {
         println("saving")
         user!!.save()
         println("saved")
+    }
+
+    fun export(vault: Vault): String {
+        println("exporting")
+        val exportFilename = user!!.export(vault)
+        println("exported")
+        return exportFilename
     }
 
     fun updateAssociation(oldIdentifier: String, newIdentifier: String, assoc: Association, password: String) {

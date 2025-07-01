@@ -14,7 +14,7 @@ import java.util.concurrent.Callable
 // class representing an association model undergoing change in the UI
 class AssociationProxy: ItemViewModel<AssociationModel>() {
     val mainIdentifier = bind(AssociationModel::mainIdentifierProperty)
-    val secondaryIdentifiers = bind(AssociationModel::secondaryIdentifiersProperty) as SimpleListProperty<String>
+    val secondaryIdentifiers = bind(AssociationModel::secondaryIdentifiersProperty)
     val isNeeded = bind(AssociationModel::isNeededProperty)
     val shouldBeDeactivated = bind(AssociationModel::shouldBeDeactivatedProperty)
     val isDeactivated = bind(AssociationModel::isDeactivatedProperty)
@@ -69,8 +69,8 @@ class AssociationProxy: ItemViewModel<AssociationModel>() {
     override fun onCommit() {
         println("In on commit")
         copyList()
+        item = AssociationModel()
     }
-
 
     // copies list whenever a rollback is done so that subsequent commits and rollbacks work as they should (must be triggered manually)
     fun onRollback() =

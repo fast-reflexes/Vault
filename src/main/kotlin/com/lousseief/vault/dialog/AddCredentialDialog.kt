@@ -96,6 +96,7 @@ class AddCredentialDialog(defaultPasswordLength: Int, evaluator: (String, Action
                                 hgrow = Priority.ALWAYS
                                 maxWidth = Double.MAX_VALUE
                                 passwordField = this
+                                Platform.runLater { this.requestFocus() }
                             }
                         }
                         button("Generate password") {
@@ -107,7 +108,7 @@ class AddCredentialDialog(defaultPasswordLength: Int, evaluator: (String, Action
                                     )
                                 )
                             }
-                            Platform.runLater { this.requestFocus() }
+                            //Platform.runLater { this.requestFocus() }
                         }
                     }
 

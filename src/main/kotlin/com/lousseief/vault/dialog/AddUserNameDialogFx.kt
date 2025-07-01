@@ -9,15 +9,15 @@ import javafx.geometry.Insets
 import javafx.geometry.Pos
 import javafx.scene.control.*
 import javafx.scene.layout.GridPane
+import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
+import javafx.scene.layout.VBox
 import javafx.scene.text.TextAlignment
 import javafx.util.Callback
-import tornadofx.*
-import javax.swing.GroupLayout
 
-class AddUserNameDialog(evaluator: (String, ActionEvent) -> Unit, header: String, userNameList: ObservableList<String>, model: CredentialProxy): TextInputDialog() {
+class AddUserNameDialogFx(evaluator: (String, ActionEvent) -> Unit, header: String, userNameList: ObservableList<String>, model: CredentialProxy): TextInputDialog() {
 
-    val errorProperty = SimpleStringProperty("")
+    /*val errorProperty = SimpleStringProperty("")
     val error by errorProperty;
     val userName = SimpleStringProperty("")
 
@@ -54,24 +54,25 @@ class AddUserNameDialog(evaluator: (String, ActionEvent) -> Unit, header: String
 
     init {
         val errorLabel = Label()
+        errorLabel.visibleProperty().bind(errorProperty.isNotEmpty)
         errorLabel.removeWhen(errorProperty.isEmpty)
-        errorLabel.hgrow = Priority.ALWAYS
-        errorLabel.vgrow = Priority.NEVER
+        HBox.setHgrow(errorLabel, Priority.ALWAYS)
+        VBox.setVgrow(errorLabel, Priority.NEVER)
         errorLabel.maxHeight = Double.MAX_VALUE
         errorLabel.textProperty().bind(errorProperty)
         errorLabel.textAlignment = TextAlignment.LEFT
         errorLabel.alignment = Pos.CENTER_LEFT
         errorLabel.style = "-fx-text-fill: red";
-        errorLabel.setWrapText(true)
+        errorLabel.isWrapText = true
         Platform.runLater{errorLabel.setMaxWidth(editor.width)}
 
-        dialogPane.hgrow = Priority.NEVER
-        dialogPane.vgrow = Priority.ALWAYS
+        HBox.setHgrow(dialogPane, Priority.NEVER)
+        VBox.setVgrow(dialogPane, Priority.ALWAYS)
         headerText = header
 
         val orLabel = Label("or")
         orLabel.maxWidth = Double.MAX_VALUE
-        orLabel.hgrow = Priority.ALWAYS
+        HBox.setHgrow(orLabel, Priority.ALWAYS)
         orLabel.alignment = Pos.CENTER
         orLabel.padding = Insets(10.0)
 
@@ -119,5 +120,5 @@ class AddUserNameDialog(evaluator: (String, ActionEvent) -> Unit, header: String
                 dialogPane.scene.window.sizeToScene()
             }
         }
-    }
+    }*/
 }

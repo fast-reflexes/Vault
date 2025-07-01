@@ -78,7 +78,7 @@ object UserService {
                 )
             )
         println("" + newUser.checkSum.length + " " + Conversion.Base64ToBytes(newUser.checkSum).size)
-        FileService.writeFile(newUser, false)
+        FileService.writeVaultFile(newUser, false)
         return newUser
     }
 

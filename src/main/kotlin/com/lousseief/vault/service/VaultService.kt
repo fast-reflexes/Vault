@@ -5,11 +5,13 @@ import com.google.gson.reflect.TypeToken
 import com.lousseief.vault.crypto.CbcCrypto
 import com.lousseief.vault.crypto.Conversion
 import com.lousseief.vault.model.AssociationWithCredentials
+import com.lousseief.vault.model.MutableVault
 import com.lousseief.vault.model.Settings
+import com.lousseief.vault.model.Vault
 
 object VaultService {
 
-    fun encryptVault(encryptionKey: ByteArray, vault: Pair<Settings, Map<String, AssociationWithCredentials>>): Pair<String, String> =
+    fun encryptVault(encryptionKey: ByteArray, vault: Vault): Pair<String, String> =
         CbcCrypto.encrypt(
             Conversion.UTF8ToBytes(Gson().toJson(vault)),
             encryptionKey
@@ -51,14 +53,14 @@ object VaultService {
     }
 }*/
 
-    fun decryptVault(encryptedVault: String, iv: String, encryptionKey: ByteArray): Pair<Settings, MutableMap<String, AssociationWithCredentials>> {
+    fun decryptVault(encryptedVault: String, iv: String, encryptionKey: ByteArray): MutableVault {
         val plainBytes = CbcCrypto.decrypt(
             Conversion.Base64ToBytes(encryptedVault),
             encryptionKey,
             Conversion.Base64ToBytes(iv)
         )
         val plainText = Conversion.bytesToUTF8(plainBytes)
-        val itemType = object : TypeToken<Pair<Settings, MutableMap<String, AssociationWithCredentials>>>() {}.type
+        val itemType = object : TypeToken<MutableVault>() {}.type
         return Gson().fromJson(plainText, itemType)
     }
 }

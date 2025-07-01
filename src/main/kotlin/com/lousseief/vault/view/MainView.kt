@@ -2,6 +2,7 @@ package com.lousseief.vault.view
 
 import com.lousseief.vault.controller.UserController
 import com.lousseief.vault.dialog.ChangeMasterPasswordDialog
+import com.lousseief.vault.dialog.PasswordConfirmDialog
 import com.lousseief.vault.dialog.SingleInputDialog
 import com.lousseief.vault.dialog.StringGeneratorDialog
 import com.lousseief.vault.model.AssociationModel
@@ -426,8 +427,12 @@ class MainView : View() {
                                     cellFactory = CB(this)
                                     bindSelected(model)
                                     selectionModel.selectFirst()
+                                    scrollpane { hbarPolicy = ScrollPane.ScrollBarPolicy.NEVER }
                                     table = this
-                                    Platform.runLater{ this.requestFocus() }
+                                    Platform.runLater {
+                                        this.requestFocus()
+                                        this.scrollTo(0)
+                                    }
                                     //columnResizePolicy = TableView.CONSTRAINED_RESIZE_POLICY
                                     /*column("Vault entries", AssociationModel::mainIdentifierProperty) {
                                         maxWidth = Double.MAX_VALUE
@@ -462,15 +467,16 @@ class MainView : View() {
                                     val newEntry = SingleInputDialog({
                                         input: String, ev: ActionEvent ->
                                             controller.validateNewEntry(input)
-                                            val entryAdded = controller.passwordRequiredAction {
+                                            val entryAdded = controller.passwordRequiredAction({
                                                 password: String, _: ActionEvent? ->
                                                     addHandler(password, input)
-                                            }
+                                            })
                                             if(!entryAdded)
                                                 ev.consume()
                                     }, "Enter an identifier for your new entry").showAndWait()
                                     if(newEntry.isPresent) {
-                                        table.selectionModel.selectLast()
+                                        val index = controller.items.indexOfFirst { it.mainIdentifier == newEntry.get() }
+                                        table.selectionModel.select(index)
                                         table.requestFocus()
                                     }
                                     /*object: TextInputDialog() {
@@ -555,6 +561,19 @@ class MainView : View() {
                         region {
                             hgrow = Priority.ALWAYS
                             maxWidth = Double.MAX_VALUE
+                        }
+                        button("Export vault") {
+                            action {
+                                val result = PasswordConfirmDialog { password: String, event: ActionEvent ->
+                                    val vault = controller.user!!.accessVault(password)
+                                    val filename = controller.export(vault)
+                                    alert(
+                                        type = Alert.AlertType.INFORMATION,
+                                        header = "Vault successfully exported",
+                                        content = "The vault was successfully exported to file '$filename'"
+                                    )
+                                }.showAndWait()
+                            }
                         }
                         button("Save vault to disk") {
                             enableWhen(controller.altered.eq(true))

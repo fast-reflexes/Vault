@@ -4,8 +4,10 @@ import com.lousseief.vault.crypto.Conversion
 import com.lousseief.vault.exception.FileException
 import com.lousseief.vault.exception.InternalException
 import com.lousseief.vault.model.Profile
+import com.lousseief.vault.model.Vault
 import java.io.File
 import java.io.IOException
+import java.time.Instant
 
 object FileService {
 
@@ -38,11 +40,45 @@ object FileService {
 
     }
 
-    fun writeFile(user: Profile, overwrite: Boolean) {
+    fun writeVaultFile(user: Profile, overwrite: Boolean) {
         try {
             assert(overwrite || !userExists(user.name))
             val userFile = File("../" + user.name + FILE_SUFFIX)
             userFile.writeBytes(Conversion.UTF8ToBytes(user.toString()))
+        }
+        catch(e: AssertionError) {
+            throw InternalException(InternalException.InternalExceptionCause.FILE_EXISTS, e)
+        }
+        catch(e: Exception) {
+            throw FileException(FileException.FileExceptionCause.WRITE_ERROR, e)
+        }
+    }
+
+    fun writeExportFile(user: Profile, vault: Vault): String {
+        try {
+            val filename = "../${user.name}_export_${Instant.now()}.txt"
+            val userFile = File(filename)
+            val buffer = StringBuffer()
+            buffer.appendLine("VAULT EXPORT ${Instant.now()}")
+            buffer.appendLine()
+            buffer.appendLine("Settings:")
+            buffer.appendLine("\tDefault password length: ${vault.first.passwordLength}")
+            buffer.appendLine("\tPassword active time: ${vault.first.savePasswordForMinutes}")
+            buffer.appendLine("\tCategories: ${vault.first.categories.ifEmpty { null }?.joinToString(",") ?: "no categories"}")
+            buffer.appendLine("Data:")
+            vault.second.keys.forEach {
+                val assoc = vault.second.get(it)!!
+                buffer.appendLine("\t$it:")
+                buffer.appendLine("\t\tMain identifier: ${assoc.association.mainIdentifier}")
+                buffer.appendLine("\t\tSecondary identifier(s): ${assoc.association.secondaryIdentifiers.ifEmpty { null }?.joinToString(", ") ?: "(none)" } ")
+                assoc.credentials.forEach {
+                    buffer.appendLine("\t\t\tCredential: ${it.identities.ifEmpty { null }?.joinToString(" / ") ?: "(no usernames)" }: ${it.password}")
+                }
+                buffer.appendLine()
+            }
+            buffer.appendLine()
+            userFile.writeBytes(Conversion.UTF8ToBytes(buffer.toString()))
+            return filename
         }
         catch(e: AssertionError) {
             throw InternalException(InternalException.InternalExceptionCause.FILE_EXISTS, e)
