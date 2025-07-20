@@ -165,8 +165,7 @@ class AddCredentialDialog(defaultPasswordLength: Int, evaluator: (String, Action
         v.add(errorLabel)
         v.maxWidth = Double.MAX_VALUE
         v.hgrow = Priority.ALWAYS*/
-        setResultConverter {
-                type: ButtonType ->
+        setResultConverter { type: ButtonType ->
             when(type) {
                 ButtonType.OK -> password
                 ButtonType.CANCEL -> null

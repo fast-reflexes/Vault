@@ -476,7 +476,7 @@ class CredentialsView: View() {
                 hgrow = Priority.ALWAYS
                 maxWidth = Double.MAX_VALUE
             }
-            button("Close") {
+            /*button("Close") {
                 action {
                     val closeCredentialsWindow = { close() }
                     if(controller.altered.value == true) {
@@ -501,6 +501,14 @@ class CredentialsView: View() {
             button("Save") {
                 disableWhen(controller.altered.not())
                 action { userController.passwordRequiredAction(saveHandler) }
+            }*/
+            button("Ok") {
+                action {
+                    if (controller.altered.value) {
+                        userController.passwordRequiredAction(saveHandler)
+                    }
+                    close()
+                }
             }
         }
     }

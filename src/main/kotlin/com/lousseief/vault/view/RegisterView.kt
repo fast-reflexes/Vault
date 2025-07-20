@@ -105,6 +105,7 @@ class RegisterView: View() {
     override
     val root =
         stackpane {
+            minWidth = 300.0
             alignment = Pos.TOP_RIGHT
             padding = Insets(5.0)
             form {

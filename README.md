@@ -102,6 +102,7 @@ Följande är råden:
 * Remove horizontal scroll on identifiers overview
 * Scroll position i Y is not reset in VAULT ENTRIES list upon relogin
 * Kolla att den sparar lösen när man precis loggat in, den verkar begära nytt lösen direkt typ 
+* MainView filterList() - Lägg till för stöd för att söka specifikt (just nu kollas bara main identifier)
 
 * gör funktion så att man kan slippa logga in inom angiven tidsgräns
 * hantera last updated i credentials (och i entry?)

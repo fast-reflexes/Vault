@@ -13,7 +13,6 @@ import javafx.scene.layout.Priority
 import javafx.scene.text.TextAlignment
 import javafx.util.Callback
 import tornadofx.*
-import javax.swing.GroupLayout
 
 class AddUserNameDialog(evaluator: (String, ActionEvent) -> Unit, header: String, userNameList: ObservableList<String>, model: CredentialProxy): TextInputDialog() {
 
@@ -91,14 +90,14 @@ class AddUserNameDialog(evaluator: (String, ActionEvent) -> Unit, header: String
 
         val g = dialogPane.content as GridPane
         g.vgap = 5.0
-        g.getChildren().removeAt(0)
-        println(g.getChildren()[0])
-        (g.getChildren()[0] as TextField).bind(userName)
+        g.children.removeAt(0)
+        println(g.children[0])
+        (g.children[0] as TextField).bind(userName)
 
-        g.getChildren().addAll(topLabel, bottomLabel, errorLabel, orLabel, selectBox)
+        g.children.addAll(topLabel, bottomLabel, errorLabel, orLabel, selectBox)
 
         GridPane.setConstraints(topLabel, 0, 0)
-        GridPane.setConstraints(g.getChildren().get(0), 0, 1)
+        GridPane.setConstraints(g.children[0], 0, 1)
         GridPane.setConstraints(errorLabel, 0, 2)
         GridPane.setConstraints(orLabel, 0, 3);
         GridPane.setConstraints(bottomLabel, 0, 4)
