@@ -2,12 +2,10 @@
 
 # This repo is deprecated because of two reasons:
 
-## TornadoFX is no longer maintained and so upgrading this project in terms of Java and JavaFX became impossible
-## TornadoFX is a nice framework but I found a lot of subtle bugs which were superr hard to debug due to it being a
-black box doing a lot of magic which is hard to look into and debug / understand.
+### 1. TornadoFX is no longer maintained and so upgrading this project in terms of Java and JavaFX became impossible
+### 2. TornadoFX is a nice framework but I found a lot of subtle bugs which were super hard to debug due to it being a black box doing a lot of magic which is hard to look into and debug / understand.
 
-### It remains as a proof of concept of a personal Vault written in TornadoFX. THe improved version ported to JavaFX 
-ONLY can be found at: https://github.com/fast-reflexes/vault-javafx
+####  It remains as a proof of concept of a personal Vault written in TornadoFX. The improved version ported to JavaFX ONLY can be found at: https://github.com/fast-reflexes/vault-javafx
 
 Sensmoral av TornadoFx so far: buggigt ramverk, bättre att använda JavaFx helt och hållet tror jag
 
